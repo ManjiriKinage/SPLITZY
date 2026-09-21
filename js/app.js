@@ -380,17 +380,25 @@ class SplitzyApp {
       } else {
         let html = '';
         summary.debts.forEach(d => {
+          const friendUpi = storage.getMemberUpi(d.to);
           html += `
-            <div class="settlement-item">
-              <div class="settlement-flow">
-                <span class="text-danger fw-bold">You</span>
-                <i class="fa-solid fa-arrow-right settlement-arrow"></i>
-                <span class="text-main fw-bold">${d.to}</span>
+            <div class="settlement-item flex-column flex-sm-row align-items-start align-items-sm-center gap-2">
+              <div>
+                <div class="settlement-flow mb-1">
+                  <span class="text-danger fw-bold">You</span>
+                  <i class="fa-solid fa-arrow-right settlement-arrow text-danger"></i>
+                  <span class="text-main fw-bold">${d.to}</span>
+                </div>
+                <div class="d-flex align-items-center gap-1">
+                  <span class="badge bg-primary-subtle text-primary border font-monospace px-2 py-1" style="font-size: 0.74rem;">
+                    <i class="fa-solid fa-at me-1"></i>${friendUpi}
+                  </span>
+                </div>
               </div>
-              <div class="d-flex align-items-center gap-2">
-                <span class="fw-bold text-danger">₹${d.amount.toLocaleString('en-IN')}</span>
-                <button class="btn btn-sm btn-splitzy-success py-1 px-2" onclick="App.openSettleUpModal('${d.groupId}', '${currentUserName}', '${d.to}', ${d.amount})">
-                  <i class="fa-solid fa-qrcode me-1"></i> UPI Pay
+              <div class="d-flex align-items-center justify-content-between w-100 w-sm-auto gap-2">
+                <span class="fw-bold text-danger fs-6">₹${d.amount.toLocaleString('en-IN')}</span>
+                <button class="btn btn-sm btn-splitzy-success py-1 px-3 d-inline-flex align-items-center gap-1" onclick="App.openSettleUpModal('${d.groupId}', '${currentUserName}', '${d.to}', ${d.amount})">
+                  <i class="fa-solid fa-qrcode"></i> Pay UPI
                 </button>
               </div>
             </div>
@@ -398,15 +406,18 @@ class SplitzyApp {
         });
         summary.credits.forEach(c => {
           html += `
-            <div class="settlement-item">
-              <div class="settlement-flow">
-                <span class="text-main fw-bold">${c.from}</span>
-                <i class="fa-solid fa-arrow-right settlement-arrow text-success"></i>
-                <span class="text-success fw-bold">You</span>
+            <div class="settlement-item flex-column flex-sm-row align-items-start align-items-sm-center gap-2">
+              <div>
+                <div class="settlement-flow mb-1">
+                  <span class="text-main fw-bold">${c.from}</span>
+                  <i class="fa-solid fa-arrow-right settlement-arrow text-success"></i>
+                  <span class="text-success fw-bold">You</span>
+                </div>
+                <small class="text-muted fw-semibold">owes you</small>
               </div>
-              <div class="d-flex align-items-center gap-2">
-                <span class="fw-bold text-success">₹${c.amount.toLocaleString('en-IN')}</span>
-                <button class="btn btn-sm btn-splitzy-secondary py-1 px-2" onclick="App.openSettleUpModal('${c.groupId}', '${c.from}', '${currentUserName}', ${c.amount})">
+              <div class="d-flex align-items-center justify-content-between w-100 w-sm-auto gap-2">
+                <span class="fw-bold text-success fs-6">₹${c.amount.toLocaleString('en-IN')}</span>
+                <button class="btn btn-sm btn-splitzy-secondary py-1 px-3" onclick="App.openSettleUpModal('${c.groupId}', '${c.from}', '${currentUserName}', ${c.amount})">
                   Settle
                 </button>
               </div>
@@ -512,21 +523,34 @@ class SplitzyApp {
           </div>
         `;
       } else {
-        settlementsContainer.innerHTML = simplified.map(t => `
-          <div class="settlement-item">
-            <div class="settlement-flow">
-              <span class="${t.from === currentUserName ? 'text-danger fw-bold' : 'text-main fw-bold'}">${t.from === currentUserName ? 'You' : t.from}</span>
-              <i class="fa-solid fa-arrow-right settlement-arrow"></i>
-              <span class="${t.to === currentUserName ? 'text-success fw-bold' : 'text-main fw-bold'}">${t.to === currentUserName ? 'You' : t.to}</span>
+        settlementsContainer.innerHTML = simplified.map(t => {
+          const isPayer = t.from === currentUserName;
+          const friendUpi = isPayer ? storage.getMemberUpi(t.to) : '';
+          return `
+            <div class="settlement-item flex-column flex-sm-row align-items-start align-items-sm-center gap-2">
+              <div>
+                <div class="settlement-flow mb-1">
+                  <span class="${isPayer ? 'text-danger fw-bold' : 'text-main fw-bold'}">${isPayer ? 'You' : t.from}</span>
+                  <i class="fa-solid fa-arrow-right settlement-arrow ${isPayer ? 'text-danger' : 'text-success'}"></i>
+                  <span class="${t.to === currentUserName ? 'text-success fw-bold' : 'text-main fw-bold'}">${t.to === currentUserName ? 'You' : t.to}</span>
+                </div>
+                ${isPayer ? `
+                  <div class="d-flex align-items-center gap-1">
+                    <span class="badge bg-primary-subtle text-primary border font-monospace px-2 py-1" style="font-size: 0.74rem;">
+                      <i class="fa-solid fa-at me-1"></i>${friendUpi}
+                    </span>
+                  </div>
+                ` : ''}
+              </div>
+              <div class="d-flex align-items-center justify-content-between w-100 w-sm-auto gap-2">
+                <span class="fw-bold fs-6 text-main">₹${t.amount.toLocaleString('en-IN')}</span>
+                <button class="btn btn-sm ${isPayer ? 'btn-splitzy-success' : 'btn-splitzy-secondary'} py-1 px-3 d-inline-flex align-items-center gap-1" onclick="App.openSettleUpModal('${group.id}', '${t.from}', '${t.to}', ${t.amount})">
+                  <i class="fa-solid fa-qrcode"></i> ${isPayer ? 'Pay UPI' : 'Record'}
+                </button>
+              </div>
             </div>
-            <div class="d-flex align-items-center gap-2">
-              <span class="fw-bold fs-6 text-main">₹${t.amount.toLocaleString('en-IN')}</span>
-              <button class="btn btn-sm btn-splitzy-success py-1 px-2" onclick="App.openSettleUpModal('${group.id}', '${t.from}', '${t.to}', ${t.amount})">
-                <i class="fa-solid fa-qrcode me-1"></i> UPI Settle
-              </button>
-            </div>
-          </div>
-        `).join('');
+          `;
+        }).join('');
       }
     }
 
@@ -571,24 +595,32 @@ class SplitzyApp {
       if (summary.debts.length === 0) {
         debtsContainer.innerHTML = '<p class="text-muted text-center py-4 fw-semibold"><i class="fa-solid fa-circle-check text-success me-1"></i> You do not owe anyone money.</p>';
       } else {
-        debtsContainer.innerHTML = summary.debts.map(d => `
-          <div class="settlement-item">
-            <div>
-              <div class="settlement-flow mb-1">
-                <span class="text-danger fw-bold">You</span>
-                <i class="fa-solid fa-arrow-right settlement-arrow"></i>
-                <strong class="text-main">${d.to}</strong>
+        debtsContainer.innerHTML = summary.debts.map(d => {
+          const friendUpi = storage.getMemberUpi(d.to);
+          return `
+            <div class="settlement-item flex-column flex-sm-row align-items-start align-items-sm-center gap-2">
+              <div>
+                <div class="settlement-flow mb-1">
+                  <span class="text-danger fw-bold">You</span>
+                  <i class="fa-solid fa-arrow-right settlement-arrow text-danger"></i>
+                  <strong class="text-main">${d.to}</strong>
+                  <span class="text-muted small">(${d.groupName})</span>
+                </div>
+                <div class="d-flex align-items-center gap-1 mt-1">
+                  <span class="badge bg-primary-subtle text-primary border font-monospace px-2 py-1" style="font-size: 0.74rem;">
+                    <i class="fa-solid fa-at me-1"></i>${friendUpi}
+                  </span>
+                </div>
               </div>
-              <small class="text-muted fw-semibold">in <strong>${d.groupName}</strong></small>
+              <div class="d-flex align-items-center justify-content-between w-100 w-sm-auto gap-2">
+                <strong class="text-danger fs-6">₹${d.amount.toLocaleString('en-IN')}</strong>
+                <button class="btn btn-sm btn-splitzy-success py-1 px-3 d-inline-flex align-items-center gap-1" onclick="App.openSettleUpModal('${d.groupId}', '${currentUserName}', '${d.to}', ${d.amount})">
+                  <i class="fa-solid fa-qrcode"></i> Pay UPI
+                </button>
+              </div>
             </div>
-            <div class="d-flex align-items-center gap-2">
-              <strong class="text-danger fs-6">₹${d.amount.toLocaleString('en-IN')}</strong>
-              <button class="btn btn-sm btn-splitzy-success py-1 px-3" onclick="App.openSettleUpModal('${d.groupId}', '${currentUserName}', '${d.to}', ${d.amount})">
-                <i class="fa-solid fa-qrcode me-1"></i> Pay UPI
-              </button>
-            </div>
-          </div>
-        `).join('');
+          `;
+        }).join('');
       }
     }
 
