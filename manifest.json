@@ -1,0 +1,19 @@
+{
+  "name": "Splitzy — Smart Group Expense & Settlement Manager",
+  "short_name": "Splitzy",
+  "description": "Smart group expense splitting, instant UPI settlements, and greedy min-cash-flow debt simplification.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0f172a",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "assets/favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["finance", "utilities", "productivity"]
+}

@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Splitzy — Group Expense, UPI Settlements & Bill Splitting</title>
+  <meta name="description" content="Splitzy lets you manage shared group expenses, generate dynamic UPI payment QR codes, split itemized bills, and download PDF statements offline.">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+
+  <!-- PWA Metadata -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#4f46e5">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Splitzy">
+
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  
+  <!-- Font Awesome 6 Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- Splitzy Custom Responsive Stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <nav class="navbar navbar-expand navbar-splitzy sticky-top">
+    <div class="container-fluid px-3 px-lg-4">
+      <!-- Brand Logo -->
+      <a class="brand-logo" onclick="App.navigate('dashboard')" href="javascript:void(0)">
+        <div class="brand-logo-icon">
+          <i class="fa-solid fa-receipt"></i>
+        </div>
+        <span>Splitzy</span>
+      </a>
+
+      <!-- Right Action Items -->
+      <div class="d-flex align-items-center gap-2 gap-md-3">
+        <!-- PWA Install Prompt Button (Shown when browser supports install) -->
+        <button class="btn btn-sm btn-outline-warning d-none d-md-inline-flex align-items-center gap-1 rounded-pill" id="pwaInstallBtn" onclick="App.promptPwaInstall()" style="display: none;">
+          <i class="fa-solid fa-download"></i>
+          <span>Install App</span>
+        </button>
+
+        <!-- User Profile Pill -->
+        <button class="user-profile-btn" onclick="App.openProfileEditModal()" title="Click to edit your profile & UPI ID">
+          <i class="fa-solid fa-circle-user text-primary fs-5"></i>
+          <span id="navbarUserName">You</span>
+        </button>
+
+        <!-- Join by Code Button -->
+        <button class="btn btn-splitzy-secondary d-none d-sm-inline-flex" onclick="App.openJoinGroupModal()" title="Enter Group Code to Join">
+          <i class="fa-solid fa-key text-warning"></i>
+          <span>Join Group</span>
+        </button>
+
+        <!-- New Group Button -->
+        <button class="btn btn-splitzy-secondary d-none d-md-inline-flex" onclick="App.openCreateGroupModal()">
+          <i class="fa-solid fa-user-plus text-success"></i>
+          <span>New Group</span>
+        </button>
+
+        <!-- Add Expense Primary Action (Desktop) -->
+        <button class="btn btn-splitzy-primary d-none d-sm-inline-flex" onclick="App.openAddExpenseModal()">
+          <i class="fa-solid fa-plus"></i>
+          <span>Add Expense</span>
+        </button>
+
+        <!-- Theme Toggle -->
+        <button class="theme-toggle-btn" id="themeToggleBtn" title="Toggle Light / Dark Theme">
+          <i class="fa-solid fa-moon"></i>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Container -->
+  <main class="container py-3 py-md-4 main-content-wrapper">
+
+    <!-- KPI Metrics Ribbon -->
+    <div class="row g-2 g-md-3 mb-3 mb-md-4">
+      <div class="col-6 col-lg-3">
+        <div class="stat-card">
+          <div>
+            <small class="text-muted d-block fw-bold mb-1">Total Balance</small>
+            <div class="stat-value text-success" id="metricTotalBalance">+₹0</div>
+          </div>
+          <div class="stat-icon indigo d-none d-sm-flex">
+            <i class="fa-solid fa-scale-balanced"></i>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-lg-3">
+        <div class="stat-card">
+          <div>
+            <small class="text-muted d-block fw-bold mb-1">You are owed</small>
+            <div class="stat-value text-success" id="metricOwedToYou">₹0</div>
+          </div>
+          <div class="stat-icon green d-none d-sm-flex">
+            <i class="fa-solid fa-arrow-down-left"></i>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-lg-3">
+        <div class="stat-card">
+          <div>
+            <small class="text-muted d-block fw-bold mb-1">You owe</small>
+            <div class="stat-value text-danger" id="metricYouOwe">₹0</div>
+          </div>
+          <div class="stat-icon rose d-none d-sm-flex">
+            <i class="fa-solid fa-arrow-up-right"></i>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-lg-3">
+        <div class="stat-card">
+          <div>
+            <small class="text-muted d-block fw-bold mb-1">Active Groups</small>
+            <div class="stat-value text-main" id="metricTotalGroups">0</div>
+          </div>
+          <div class="stat-icon amber d-none d-sm-flex">
+            <i class="fa-solid fa-users"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs (Desktop / Tablet) -->
+    <div class="d-none d-md-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+      <div class="splitzy-nav-tabs">
+        <button class="splitzy-nav-tab active" data-view="dashboard">
+          <i class="fa-solid fa-grid-2"></i> Dashboard
+        </button>
+        <button class="splitzy-nav-tab" data-view="settlements">
+          <i class="fa-solid fa-handshake-simple"></i> Settlement Hub (UPI)
+        </button>
+        <button class="splitzy-nav-tab" data-view="activity">
+          <i class="fa-solid fa-clock-rotate-left"></i> Activity Log
+        </button>
+      </div>
+
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-splitzy-secondary" onclick="App.openCreateGroupModal()">
+          <i class="fa-solid fa-plus me-1"></i> New Group
+        </button>
+        <button class="btn btn-sm btn-splitzy-secondary" onclick="App.openJoinGroupModal()">
+          <i class="fa-solid fa-key me-1"></i> Join
+        </button>
+      </div>
+    </div>
+
+    <!-- =========================================================================
+         VIEW 1: DASHBOARD
+         ========================================================================= -->
+    <section id="view-dashboard" class="view-section">
+      <div class="row">
+        <!-- Left Column: Groups Grid -->
+        <div class="col-12 col-lg-8">
+          <div class="d-flex align-items-center justify-content-between mb-3">
+            <h4 class="mb-0 text-main fw-bold">Your Expense Groups</h4>
+            <div class="d-flex gap-2">
+              <button class="btn btn-sm btn-splitzy-secondary d-md-none" onclick="App.openJoinGroupModal()">
+                <i class="fa-solid fa-key text-warning"></i> Join
+              </button>
+              <button class="btn btn-sm btn-splitzy-secondary" onclick="App.openCreateGroupModal()">
+                <i class="fa-solid fa-plus-circle me-1 text-primary"></i> Create Group
+              </button>
+            </div>
+          </div>
+          <div class="row g-3" id="dashboardGroupsContainer">
+            <!-- Populated via JavaScript -->
+          </div>
+        </div>
+
+        <!-- Right Column: Quick Settlements & Activity -->
+        <div class="col-12 col-lg-4 mt-4 mt-lg-0">
+          <!-- Pending Settlements Card -->
+          <div class="splitzy-card mb-4">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <h5 class="mb-0 text-main fw-bold"><i class="fa-solid fa-bolt text-warning me-2"></i>Quick Settlements</h5>
+              <small class="text-muted fw-bold">Instant UPI</small>
+            </div>
+            <div id="dashboardQuickSettlements">
+              <!-- Populated via JavaScript -->
+            </div>
+          </div>
+
+          <!-- Recent Activity Card -->
+          <div class="splitzy-card">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <h5 class="mb-0 text-main fw-bold"><i class="fa-solid fa-receipt text-primary me-2"></i>Recent Activity</h5>
+              <button class="btn btn-sm btn-link p-0 text-decoration-none fw-bold" onclick="App.navigate('activity')">View all</button>
+            </div>
+            <div id="dashboardRecentActivity">
+              <!-- Populated via JavaScript -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         VIEW 2: GROUP DETAIL VIEW
+         ========================================================================= -->
+    <section id="view-group" class="view-section d-none">
+      <!-- Back to Dashboard -->
+      <button class="btn btn-sm btn-link text-muted text-decoration-none mb-3 p-0 fw-bold d-inline-flex align-items-center gap-1" onclick="App.navigate('dashboard')">
+        <i class="fa-solid fa-arrow-left"></i> Back to All Groups
+      </button>
+
+      <!-- Group Hero Card -->
+      <div class="splitzy-card mb-4">
+        <div class="d-flex align-items-start justify-content-between flex-wrap gap-3">
+          <div class="d-flex align-items-center gap-3">
+            <div class="group-avatar fs-2" id="groupDetailIcon">🏖️</div>
+            <div>
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <h3 class="mb-0 text-main fw-bold" id="groupDetailName">Group Name</h3>
+                <span class="group-code-badge" id="groupDetailCode">GRP-XXXX</span>
+              </div>
+              <div class="mt-2" id="groupDetailMembers">
+                <!-- Member chips populated dynamically -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Group Actions Toolbar -->
+          <div class="d-flex align-items-center gap-2 flex-wrap w-100 w-sm-auto justify-content-start justify-content-sm-end">
+            <button class="btn btn-sm btn-splitzy-secondary" onclick="App.openShareGroupModal(App.activeGroupId)">
+              <i class="fa-solid fa-share-nodes text-primary"></i> Invite
+            </button>
+            <button class="btn btn-sm btn-outline-danger" onclick="ExportManager.downloadGroupPDF(App.activeGroupId)" title="Download PDF Statement">
+              <i class="fa-solid fa-file-pdf me-1"></i> Statement PDF
+            </button>
+            <button class="btn btn-sm btn-splitzy-primary" onclick="App.openAddExpenseModal(App.activeGroupId)">
+              <i class="fa-solid fa-plus"></i> Add Expense
+            </button>
+            <div class="dropdown">
+              <button class="btn btn-sm btn-splitzy-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                <i class="fa-solid fa-ellipsis-vertical"></i>
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end shadow">
+                <li><a class="dropdown-item" href="javascript:void(0)" onclick="ExportManager.shareToWhatsApp(App.activeGroupId)"><i class="fa-brands fa-whatsapp text-success me-2"></i>Share on WhatsApp</a></li>
+                <li><a class="dropdown-item" href="javascript:void(0)" onclick="ExportManager.downloadGroupPDF(App.activeGroupId)"><i class="fa-solid fa-file-pdf text-danger me-2"></i>Download PDF Statement</a></li>
+                <li><a class="dropdown-item" href="javascript:void(0)" onclick="ExportManager.exportGroupToCSV(App.activeGroupId)"><i class="fa-solid fa-file-csv text-warning me-2"></i>Export to CSV</a></li>
+                <li><a class="dropdown-item" href="javascript:void(0)" onclick="ExportManager.copyShareSummary(App.activeGroupId)"><i class="fa-solid fa-copy text-primary me-2"></i>Copy Summary Text</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="javascript:void(0)" onclick="ExportManager.printGroupReport()"><i class="fa-solid fa-print text-info me-2"></i>Print Report</a></li>
+                <li><a class="dropdown-item text-danger" href="javascript:void(0)" onclick="App.deleteGroup(App.activeGroupId)"><i class="fa-solid fa-trash me-2"></i>Delete Group</a></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Group Sub-Tabs -->
+      <ul class="nav nav-tabs mb-3 border-bottom" style="border-color: var(--card-border) !important;">
+        <li class="nav-item">
+          <button class="nav-link active fw-bold text-reset" data-bs-toggle="tab" data-bs-target="#groupTabExpenses">
+            <i class="fa-solid fa-list-check me-2"></i>Expenses
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link fw-bold text-reset" data-bs-toggle="tab" data-bs-target="#groupTabBalances">
+            <i class="fa-solid fa-scale-balanced me-2"></i>Balances & UPI
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link fw-bold text-reset" data-bs-toggle="tab" data-bs-target="#groupTabAnalytics">
+            <i class="fa-solid fa-chart-pie me-2"></i>Analytics
+          </button>
+        </li>
+      </ul>
+
+      <!-- Sub-Tab Content -->
+      <div class="tab-content">
+        <!-- Sub-Tab 1: Expenses -->
+        <div class="tab-pane fade show active" id="groupTabExpenses">
+          <!-- Filter & Search Bar -->
+          <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2 flex-grow-1" style="max-width: 400px;">
+              <div class="input-group input-group-sm">
+                <span class="input-group-text"><i class="fa-solid fa-search"></i></span>
+                <input type="text" class="form-control" id="expenseSearchInput" placeholder="Search expenses...">
+              </div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+              <select class="form-select form-select-sm" id="expenseCategoryFilter" style="width: auto;">
+                <option value="ALL">All Categories</option>
+                <option value="Food">🍕 Food</option>
+                <option value="Travel">🚗 Travel</option>
+                <option value="Hotel">🏨 Hotel</option>
+                <option value="Utilities">💡 Utilities</option>
+                <option value="Shopping">🛍️ Shopping</option>
+                <option value="Entertainment">🎟️ Entertainment</option>
+                <option value="Rent">🏠 Rent</option>
+                <option value="General">📦 General</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="groupExpensesList" class="d-flex flex-column gap-2">
+            <!-- Expenses populated dynamically -->
+          </div>
+        </div>
+
+        <!-- Sub-Tab 2: Balances & Simplified Debts -->
+        <div class="tab-pane fade" id="groupTabBalances">
+          <div class="row g-4">
+            <!-- Left: Individual Balances -->
+            <div class="col-12 col-lg-6">
+              <div class="splitzy-card h-100">
+                <h5 class="mb-3 text-main fw-bold"><i class="fa-solid fa-users me-2 text-primary"></i>Member Balances</h5>
+                <div id="groupBalancesList" class="d-flex flex-column gap-2">
+                  <!-- Balances list populated dynamically -->
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Min-Cash-Flow Simplified Settlements -->
+            <div class="col-12 col-lg-6">
+              <div class="splitzy-card h-100">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                  <h5 class="mb-0 text-main fw-bold"><i class="fa-solid fa-handshake-simple text-success me-2"></i>Suggested Settlements</h5>
+                  <span class="badge bg-success-subtle text-success border px-2 py-1 small fw-bold">Min-Cash-Flow O(N log N)</span>
+                </div>
+                <div id="groupSimplifiedDebtsList" class="d-flex flex-column gap-2">
+                  <!-- Simplified transfers populated dynamically -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sub-Tab 3: Analytics -->
+        <div class="tab-pane fade" id="groupTabAnalytics">
+          <div class="row g-4">
+            <div class="col-12 col-lg-6">
+              <div class="splitzy-card">
+                <h6 class="text-main fw-bold mb-3"><i class="fa-solid fa-chart-pie text-warning me-2"></i>Spending by Category</h6>
+                <div style="position: relative; height: 260px;">
+                  <canvas id="categoryChart"></canvas>
+                </div>
+              </div>
+            </div>
+            <div class="col-12 col-lg-6">
+              <div class="splitzy-card">
+                <h6 class="text-main fw-bold mb-3"><i class="fa-solid fa-chart-column text-primary me-2"></i>Paid vs Consumed Share</h6>
+                <div style="position: relative; height: 260px;">
+                  <canvas id="memberComparisonChart"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         VIEW 3: SETTLEMENTS HUB
+         ========================================================================= -->
+    <section id="view-settlements" class="view-section d-none">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <div>
+          <h4 class="mb-1 text-main fw-bold">Global Settlement Hub</h4>
+          <p class="text-muted mb-0 small">Cross-group simplified transfers with Instant UPI QR Codes.</p>
+        </div>
+      </div>
+
+      <div class="row g-4">
+        <!-- You Owe Section -->
+        <div class="col-12 col-lg-6">
+          <div class="splitzy-card">
+            <h5 class="mb-3 text-danger fw-bold"><i class="fa-solid fa-arrow-up-right me-2"></i>Payments You Need to Make</h5>
+            <div id="globalDebtsContainer" class="d-flex flex-column gap-2">
+              <!-- Global debts populated dynamically -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Owed to You Section -->
+        <div class="col-12 col-lg-6">
+          <div class="splitzy-card">
+            <h5 class="mb-3 text-success fw-bold"><i class="fa-solid fa-arrow-down-left me-2"></i>Payments Owed to You</h5>
+            <div id="globalCreditsContainer" class="d-flex flex-column gap-2">
+              <!-- Global credits populated dynamically -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         VIEW 4: ACTIVITY LOG
+         ========================================================================= -->
+    <section id="view-activity" class="view-section d-none">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <h4 class="mb-0 text-main fw-bold">Global Activity History</h4>
+      </div>
+      <div class="splitzy-card">
+        <div id="globalActivityLogContainer" class="d-flex flex-column gap-2">
+          <!-- Activity log populated dynamically -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- =========================================================================
+       BOTTOM NAVIGATION BAR (MOBILE ONLY)
+       ========================================================================= -->
+  <nav class="mobile-bottom-nav d-md-none">
+    <button class="mobile-nav-item active" data-view="dashboard" onclick="App.navigate('dashboard')">
+      <i class="fa-solid fa-grid-2"></i>
+      <span>Groups</span>
+    </button>
+    <button class="mobile-nav-item" data-view="settlements" onclick="App.navigate('settlements')">
+      <i class="fa-solid fa-handshake-simple"></i>
+      <span>Settle</span>
+    </button>
+    <div class="mobile-nav-fab-wrapper">
+      <button class="mobile-nav-fab" onclick="App.openAddExpenseModal()" title="Add Expense">
+        <i class="fa-solid fa-plus"></i>
+      </button>
+    </div>
+    <button class="mobile-nav-item" data-view="activity" onclick="App.navigate('activity')">
+      <i class="fa-solid fa-clock-rotate-left"></i>
+      <span>Activity</span>
+    </button>
+    <button class="mobile-nav-item" onclick="App.openProfileEditModal()">
+      <i class="fa-solid fa-circle-user"></i>
+      <span>Profile</span>
+    </button>
+  </nav>
+
+  <!-- =========================================================================
+       MODALS & DIALOGS
+       ========================================================================= -->
+
+  <!-- Modal 1: User Onboarding -->
+  <div class="modal fade" id="userOnboardingModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header border-0 pb-0">
+          <h4 class="modal-title fw-bold text-main">Welcome to Splitzy! 👋</h4>
+        </div>
+        <div class="modal-body py-4">
+          <p class="text-muted mb-3">Split group bills seamlessly, pay via dynamic UPI QR codes, and simplify debts with your friends.</p>
+          <form onsubmit="event.preventDefault(); App.saveUserProfileFromModal();">
+            <div class="mb-3">
+              <label class="form-label fw-bold text-main">What should we call you?</label>
+              <input type="text" class="form-control form-control-lg" id="onboardingUserName" placeholder="e.g. Manjiri, Alex, Rahul..." required autofocus>
+            </div>
+            <div class="mb-4">
+              <label class="form-label fw-bold text-main">Your UPI ID <small class="text-muted fw-normal">(for receiving direct settlements)</small></label>
+              <input type="text" class="form-control" id="onboardingUserUpi" placeholder="e.g. yourname@okaxis or 9876543210@paytm">
+            </div>
+            <button type="submit" class="btn btn-splitzy-primary w-100 py-3 fw-bold fs-6">
+              Get Started 🚀
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 2: Edit Profile & UPI ID -->
+  <div class="modal fade" id="profileEditModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title text-main fw-bold"><i class="fa-solid fa-circle-user me-2 text-primary"></i>Your Profile & UPI Details</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form onsubmit="event.preventDefault(); App.saveProfileEdit();">
+            <div class="mb-3">
+              <label class="form-label fw-bold text-main">Display Name</label>
+              <input type="text" class="form-control" id="editProfileNameInput" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-bold text-main">Your UPI ID <small class="text-muted fw-normal">(GPay / PhonePe / Paytm)</small></label>
+              <input type="text" class="form-control font-monospace" id="editProfileUpiInput" placeholder="e.g. rahul@okaxis">
+              <small class="text-muted mt-1 d-block">Used when friends scan QR codes to pay you back directly.</small>
+            </div>
+
+            <!-- In-App Backup & Restore -->
+            <hr class="my-3" style="border-color: var(--card-border);">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <small class="text-muted fw-bold">Data Persistence & Backup:</small>
+            </div>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-sm btn-splitzy-secondary flex-grow-1" onclick="App.exportBackupJSON()">
+                <i class="fa-solid fa-download me-1"></i> Backup JSON
+              </button>
+              <button type="button" class="btn btn-sm btn-splitzy-secondary flex-grow-1" onclick="document.getElementById('importBackupFile').click()">
+                <i class="fa-solid fa-upload me-1"></i> Restore
+              </button>
+              <input type="file" id="importBackupFile" class="d-none" accept=".json" onchange="App.importBackupJSON(event)">
+            </div>
+
+            <button type="submit" class="btn btn-splitzy-primary w-100 mt-3 py-2 fw-bold">
+              Save Changes
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 3: Join Group by Code -->
+  <div class="modal fade" id="joinGroupModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title text-main fw-bold"><i class="fa-solid fa-key me-2 text-warning"></i>Join Existing Group</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted fw-semibold">Enter the unique 6-character Group Code shared by your friend.</p>
+          <form onsubmit="event.preventDefault(); App.joinGroupByCode();">
+            <div class="mb-3">
+              <label class="form-label fw-bold text-main">Group Code / ID</label>
+              <input type="text" class="form-control text-uppercase fs-5 fw-bold" id="joinGroupCodeInput" placeholder="e.g. GRP-TRIP or GRP-8942" required>
+            </div>
+            <button type="submit" class="btn btn-splitzy-primary w-100 py-2 fw-bold">
+              <i class="fa-solid fa-arrow-right-to-bracket me-1"></i> Join Group
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 4: Share / Invite Group Modal -->
+  <div class="modal fade" id="shareGroupModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title text-main fw-bold" id="shareGroupModalTitle">Invite Friends</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body text-center py-4">
+          <input type="hidden" id="shareGroupCurrentGroupId">
+          
+          <small class="text-muted fw-bold d-block text-uppercase mb-2">Group Join Code</small>
+          <div class="d-inline-block p-3 px-4 rounded border bg-light fs-2 fw-bold text-primary font-monospace mb-3" id="shareGroupCodeDisplay">
+            GRP-XXXX
+          </div>
+
+          <div class="mb-3 text-start">
+            <label class="form-label fw-bold text-main">Direct Invite Link</label>
+            <div class="input-group">
+              <input type="text" class="form-control" id="shareGroupLinkInput" readonly>
+              <button class="btn btn-splitzy-primary" onclick="ExportManager.copyInviteLink(document.getElementById('shareGroupCurrentGroupId').value)">
+                <i class="fa-solid fa-copy me-1"></i> Copy
+              </button>
+            </div>
+          </div>
+
+          <button class="btn btn-success w-100 py-2 fw-bold" onclick="ExportManager.shareToWhatsApp(document.getElementById('shareGroupCurrentGroupId').value)">
+            <i class="fa-brands fa-whatsapp fs-5 me-2"></i> Share via WhatsApp
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 5: Add Member to Group -->
+  <div class="modal fade" id="addMemberModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title text-main fw-bold"><i class="fa-solid fa-user-plus me-2 text-primary"></i>Add Member</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="addMemberGroupId">
+          <form onsubmit="event.preventDefault(); App.saveAddMember();">
+            <div class="mb-3">
+              <label class="form-label fw-bold text-main">Friend's Name</label>
+              <input type="text" class="form-control" id="addMemberNameInput" placeholder="e.g. Sam, Priya..." required autofocus>
+            </div>
+            <button type="submit" class="btn btn-splitzy-primary w-100 py-2 fw-bold">
+              Add to Group
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 6: Add / Edit Expense (With Equal, Exact, Percentage, and Itemized) -->
+  <div class="modal fade" id="expenseModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-fullscreen-sm-down">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title text-main fw-bold" id="expenseModalTitle">Add Expense</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="expenseForm" onsubmit="event.preventDefault(); App.saveExpenseFromModal();">
+            <div class="row g-3 mb-3">
+              <div class="col-12 col-md-6">
+                <label class="form-label fw-bold text-main">Group</label>
+                <select class="form-select" id="expenseGroupSelect" required></select>
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label fw-bold text-main">Category</label>
+                <select class="form-select" id="expenseCategory">
+                  <option value="Food">🍕 Food & Dining</option>
+                  <option value="Travel">🚗 Travel & Transport</option>
+                  <option value="Hotel">🏨 Hotel / Stay</option>
+                  <option value="Utilities">💡 Utilities & Bills</option>
+                  <option value="Shopping">🛍️ Shopping</option>
+                  <option value="Entertainment">🎟️ Entertainment</option>
+                  <option value="Rent">🏠 Rent</option>
+                  <option value="General">📦 General</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="row g-3 mb-3">
+              <div class="col-12 col-md-8">
+                <label class="form-label fw-bold text-main">Description</label>
+                <input type="text" class="form-control" id="expenseTitle" placeholder="e.g. Dinner, Uber ride, Groceries..." required>
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label fw-bold text-main">Total Amount (₹)</label>
+                <input type="number" step="0.01" min="0.01" class="form-control fs-5 fw-bold" id="expenseAmount" placeholder="0.00" required>
+              </div>
+            </div>
+
+            <div class="row g-3 mb-3">
+              <div class="col-12 col-md-6">
+                <label class="form-label fw-bold text-main">Paid By</label>
+                <select class="form-select" id="expensePaidBy" required></select>
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label fw-bold text-main">Date</label>
+                <input type="date" class="form-control" id="expenseDate" required>
+              </div>
+            </div>
+
+            <!-- Split Type Selector (4 Modes: Equal, Exact, Percentage, Itemized) -->
+            <label class="form-label fw-bold text-main d-block mb-2">Split Type</label>
+            <div class="split-type-group mb-3">
+              <button type="button" class="split-type-btn active" data-type="equal" onclick="App.setSplitType('equal')">
+                <i class="fa-solid fa-equals me-1"></i> Equal
+              </button>
+              <button type="button" class="split-type-btn" data-type="exact" onclick="App.setSplitType('exact')">
+                <i class="fa-solid fa-receipt me-1"></i> Exact
+              </button>
+              <button type="button" class="split-type-btn" data-type="percentage" onclick="App.setSplitType('percentage')">
+                <i class="fa-solid fa-percent me-1"></i> % Share
+              </button>
+              <button type="button" class="split-type-btn" data-type="itemized" onclick="App.setSplitType('itemized')">
+                <i class="fa-solid fa-list-ol me-1"></i> Itemized (Who Ate What)
+              </button>
+            </div>
+
+            <!-- Dynamic Split Breakdown -->
+            <div class="p-3 rounded mb-3 border bg-light" style="background: var(--bg-card) !important; border-color: var(--card-border) !important;">
+              <div id="splitBreakdownContainer"></div>
+            </div>
+
+            <div class="mb-2">
+              <label class="form-label fw-bold text-main">Notes / Reference (Optional)</label>
+              <input type="text" class="form-control" id="expenseNotes" placeholder="e.g. UPI Ref # or Bill memo">
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-splitzy-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-splitzy-primary" onclick="App.saveExpenseFromModal()">
+            <i class="fa-solid fa-check me-1"></i> Save Expense
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 7: Create Group -->
+  <div class="modal fade" id="createGroupModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title text-main fw-bold"><i class="fa-solid fa-users me-2 text-primary"></i>Create Group</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form onsubmit="event.preventDefault(); App.saveNewGroup();">
+            <div class="mb-3">
+              <label class="form-label fw-bold text-main">Group Name</label>
+              <input type="text" class="form-control" id="newGroupName" placeholder="e.g. Goa Trip, Flatmates 402, Project Team..." required>
+            </div>
+
+            <div class="row g-3 mb-3">
+              <div class="col-8">
+                <label class="form-label fw-bold text-main">Category</label>
+                <select class="form-select" id="newGroupCategory">
+                  <option value="Trip">🏖️ Trip & Vacation</option>
+                  <option value="Rent & Living">🏠 Rent & Flatmates</option>
+                  <option value="Food & Fun">🍕 Food & Social</option>
+                  <option value="Travel">🚗 Travel</option>
+                  <option value="Project">🚀 Project & Work</option>
+                  <option value="General">👥 General</option>
+                </select>
+              </div>
+              <div class="col-4">
+                <label class="form-label fw-bold text-main">Icon</label>
+                <select class="form-select" id="newGroupIcon">
+                  <option value="🏖️">🏖️ Beach</option>
+                  <option value="🏠">🏠 Home</option>
+                  <option value="🍕">🍕 Pizza</option>
+                  <option value="🚗">🚗 Car</option>
+                  <option value="✈️">✈️ Flight</option>
+                  <option value="🎉">🎉 Party</option>
+                  <option value="💼">💼 Work</option>
+                  <option value="☕">☕ Cafe</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-bold text-main">Add Friends (Optional)</label>
+              <div class="input-group mb-2">
+                <input type="text" class="form-control" id="newGroupMemberInput" placeholder="Friend name...">
+                <button type="button" class="btn btn-splitzy-secondary" onclick="const el = document.getElementById('newGroupMemberInput'); App.addMemberChip(el.value.trim()); el.value='';">
+                  Add
+                </button>
+              </div>
+              <small class="text-muted d-block mb-2">Initial Members in this group:</small>
+              <div id="newGroupMembersList" class="p-2 rounded border bg-light" style="min-height: 44px;"></div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-splitzy-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-splitzy-primary" onclick="App.saveNewGroup()">
+            <i class="fa-solid fa-plus me-1"></i> Create Group
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 8: Settle Up with Interactive UPI QR Code & Direct Deep Link -->
+  <div class="modal fade" id="settleUpModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title text-main fw-bold"><i class="fa-solid fa-handshake-simple me-2 text-success"></i>Instant Settlement & UPI Pay</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body text-center py-3">
+          <input type="hidden" id="settleGroupId">
+          <input type="hidden" id="settleFrom">
+          <input type="hidden" id="settleTo">
+
+          <!-- Transfer Flow Card -->
+          <div class="d-flex align-items-center justify-content-center gap-3 fs-5 fw-bold mb-3 text-main">
+            <span class="text-danger" id="settlePayerName">Person A</span>
+            <i class="fa-solid fa-arrow-right text-success"></i>
+            <span class="text-success" id="settleReceiverName">Person B</span>
+          </div>
+
+          <div class="mb-3 mx-auto" style="max-width: 220px;">
+            <label class="form-label fw-bold text-muted small">Amount to Settle (₹)</label>
+            <input type="number" step="0.01" min="0.01" class="form-control text-center fs-4 fw-bold text-main" id="settleAmount" oninput="App.refreshSettleUpiDetails()" required>
+          </div>
+
+          <!-- Dynamic UPI QR Code Box -->
+          <div class="upi-qr-card p-3 rounded border mb-3 mx-auto text-center" style="max-width: 320px; background: #ffffff; border-color: var(--card-border) !important;">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <span class="badge bg-primary-subtle text-primary border px-2 py-1 small fw-bold">
+                <i class="fa-solid fa-qrcode me-1"></i> Scan to Pay
+              </span>
+              <small class="text-muted fw-bold">GPay / PhonePe / Paytm</small>
+            </div>
+
+            <div class="d-flex justify-content-center my-2 p-2 bg-white rounded">
+              <canvas id="settleUpiQrCanvas" width="200" height="200" style="max-width: 100%; height: auto;"></canvas>
+            </div>
+
+            <div class="input-group input-group-sm mt-2">
+              <span class="input-group-text"><i class="fa-solid fa-at"></i></span>
+              <input type="text" id="settleReceiverUpiInput" class="form-control font-monospace" placeholder="UPI ID" oninput="App.onSettleReceiverUpiChange(this.value)">
+              <button class="btn btn-outline-secondary" type="button" onclick="App.copySettleUpiId()" title="Copy UPI ID">
+                <i class="fa-solid fa-copy"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Quick Payment Actions -->
+          <div class="d-flex flex-column gap-2 mb-3">
+            <a id="settleUpiPayLink" href="#" class="btn btn-success w-100 py-2 fw-bold d-inline-flex align-items-center justify-content-center gap-2">
+              <i class="fa-solid fa-mobile-screen"></i>
+              <span>Pay via UPI App (GPay / PhonePe)</span>
+            </a>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-sm btn-splitzy-secondary flex-grow-1" onclick="App.copySettleUpiLink()">
+                <i class="fa-solid fa-link me-1"></i> Copy UPI Link
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-danger flex-grow-1" onclick="App.downloadCurrentSettlementReceipt()">
+                <i class="fa-solid fa-file-pdf me-1"></i> Receipt PDF
+              </button>
+            </div>
+          </div>
+
+          <p class="small text-muted mb-0 fw-semibold">Clicking "Confirm Payment" will officially record the transaction in the ledger and recalculate balances.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-splitzy-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-splitzy-success" onclick="App.recordSettlementPayment()">
+            <i class="fa-solid fa-check me-1"></i> Confirm & Record Payment
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer"></div>
+
+  <!-- Desktop Floating Action Button -->
+  <button class="fab-btn d-none d-md-flex" onclick="App.openAddExpenseModal()" title="Add Expense">
+    <i class="fa-solid fa-plus"></i>
+  </button>
+
+  <!-- External Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+  <!-- Splitzy Modules -->
+  <script src="js/storage.js"></script>
+  <script src="js/settlement.js"></script>
+  <script src="js/groups.js"></script>
+  <script src="js/expenses.js"></script>
+  <script src="js/analytics.js"></script>
+  <script src="js/export.js"></script>
+  <script src="js/app.js"></script>
+
+  <!-- Service Worker Registration for PWA -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then((reg) => console.log('[Splitzy] Service Worker registered with scope:', reg.scope))
+          .catch((err) => console.warn('[Splitzy] Service Worker registration failed:', err));
+      });
+    }
+  </script>
+</body>
+</html>
