@@ -23,11 +23,16 @@ class GroupsManager {
   }
 
   /**
-   * Generates a web shareable invite link for a group
+   * Generates a web shareable invite link for a group, encoding all current group details & expenses
    */
   static getInviteLink(group) {
+    if (!group) return window.location.href;
     const baseUrl = window.location.origin + window.location.pathname;
-    return `${baseUrl}?join=${group.code || group.id}`;
+    const payload = storage.exportGroupPayload(group.id);
+    if (payload) {
+      return `${baseUrl}#join=${encodeURIComponent(group.code || group.id)}&data=${payload}`;
+    }
+    return `${baseUrl}?join=${encodeURIComponent(group.code || group.id)}`;
   }
 
   static renderGroupCard(group, currentUserName) {

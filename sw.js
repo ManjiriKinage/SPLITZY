@@ -2,7 +2,7 @@
  * SPLITZY 2.0 — Service Worker for Offline PWA Support
  */
 
-const CACHE_NAME = 'splitzy-cache-v2.1';
+const CACHE_NAME = 'splitzy-cache-v2.2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -22,6 +22,7 @@ const ASSETS_TO_CACHE = [
   'https://cdn.jsdelivr.net/npm/chart.js',
   'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'
 ];
 

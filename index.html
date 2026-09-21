@@ -511,25 +511,36 @@
     </div>
   </div>
 
-  <!-- Modal 3: Join Group by Code -->
+  <!-- Modal 3: Join Group / Import Data -->
   <div class="modal fade" id="joinGroupModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title text-main fw-bold"><i class="fa-solid fa-key me-2 text-warning"></i>Join Existing Group</h5>
+          <h5 class="modal-title text-main fw-bold"><i class="fa-solid fa-key me-2 text-warning"></i>Join Group / Sync Data</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <p class="text-muted fw-semibold">Enter the unique 6-character Group Code shared by your friend.</p>
+          <p class="text-muted small mb-3">
+            Enter a <strong>Group Code</strong> (e.g. <code>GRP-XXXX</code>) or paste the <strong>Invite Link / Sync Data</strong> shared from another phone or computer.
+          </p>
           <form onsubmit="event.preventDefault(); App.joinGroupByCode();">
             <div class="mb-3">
-              <label class="form-label fw-bold text-main">Group Code / ID</label>
-              <input type="text" class="form-control text-uppercase fs-5 fw-bold" id="joinGroupCodeInput" placeholder="e.g. GRP-TRIP or GRP-8942" required>
+              <label class="form-label fw-bold text-main d-flex justify-content-between">
+                <span>Group Code or Invite Link</span>
+                <a href="javascript:void(0)" class="text-decoration-none small text-primary" onclick="App.pasteIntoJoinInput()">
+                  <i class="fa-solid fa-paste me-1"></i>Paste
+                </a>
+              </label>
+              <textarea class="form-control font-monospace" id="joinGroupCodeInput" rows="2" placeholder="e.g. GRP-TRIP or paste full invite link https://...#data=..." required></textarea>
             </div>
             <button type="submit" class="btn btn-splitzy-primary w-100 py-2 fw-bold">
-              <i class="fa-solid fa-arrow-right-to-bracket me-1"></i> Join Group
+              <i class="fa-solid fa-arrow-right-to-bracket me-1"></i> Join & Sync Group
             </button>
           </form>
+          <div class="alert alert-light border mt-3 mb-0 p-2 d-flex align-items-center gap-2 small text-muted">
+            <i class="fa-solid fa-circle-info text-primary fs-5"></i>
+            <span>Opening an invite link directly in your browser will also import and sync the group automatically!</span>
+          </div>
         </div>
       </div>
     </div>
@@ -540,25 +551,43 @@
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title text-main fw-bold" id="shareGroupModalTitle">Invite Friends</h5>
+          <h5 class="modal-title text-main fw-bold" id="shareGroupModalTitle">Invite Friends & Sync</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
-        <div class="modal-body text-center py-4">
+        <div class="modal-body text-center py-3">
           <input type="hidden" id="shareGroupCurrentGroupId">
           
-          <small class="text-muted fw-bold d-block text-uppercase mb-2">Group Join Code</small>
-          <div class="d-inline-block p-3 px-4 rounded border bg-light fs-2 fw-bold text-primary font-monospace mb-3" id="shareGroupCodeDisplay">
-            GRP-XXXX
+          <div class="row g-2 align-items-center mb-3">
+            <div class="col-6 text-start">
+              <small class="text-muted fw-bold d-block text-uppercase">Group Code</small>
+              <div class="d-inline-block px-3 py-1 rounded border bg-light fs-4 fw-bold text-primary font-monospace mt-1" id="shareGroupCodeDisplay">
+                GRP-XXXX
+              </div>
+            </div>
+            <div class="col-6 text-end">
+              <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                <i class="fa-solid fa-bolt me-1"></i> Instant Sync
+              </span>
+            </div>
+          </div>
+
+          <!-- QR Code for Cross-Device Camera Scanning -->
+          <div class="p-3 bg-light rounded-3 border mb-3 text-center">
+            <small class="text-muted fw-bold d-block mb-2"><i class="fa-solid fa-qrcode me-1"></i> Scan to open & sync on another device</small>
+            <div class="d-flex justify-content-center">
+              <canvas id="shareGroupQrCanvas" class="rounded bg-white p-2 border shadow-sm" style="max-width: 180px; max-height: 180px;"></canvas>
+            </div>
           </div>
 
           <div class="mb-3 text-start">
-            <label class="form-label fw-bold text-main">Direct Invite Link</label>
+            <label class="form-label fw-bold text-main">Portable Invite & Sync Link</label>
             <div class="input-group">
-              <input type="text" class="form-control" id="shareGroupLinkInput" readonly>
+              <input type="text" class="form-control font-monospace small" id="shareGroupLinkInput" readonly>
               <button class="btn btn-splitzy-primary" onclick="ExportManager.copyInviteLink(document.getElementById('shareGroupCurrentGroupId').value)">
                 <i class="fa-solid fa-copy me-1"></i> Copy
               </button>
             </div>
+            <small class="text-muted mt-1 d-block">This link contains the group and expenses so any device can join and view immediately.</small>
           </div>
 
           <button class="btn btn-success w-100 py-2 fw-bold" onclick="ExportManager.shareToWhatsApp(document.getElementById('shareGroupCurrentGroupId').value)">
@@ -836,6 +865,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
   <!-- Splitzy Modules -->

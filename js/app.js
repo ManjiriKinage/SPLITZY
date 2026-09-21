@@ -100,11 +100,46 @@ class SplitzyApp {
     this.renderActiveView();
   }
 
-  // --- URL Join Deep Links ---
+  // --- URL Join Deep Links & Cross-Device Portable Sync ---
   handleUrlJoinParameters() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const joinCode = urlParams.get('join') || urlParams.get('group');
+    let joinCode = null;
+    let payloadData = null;
 
+    // 1. Check Hash parameters (#join=...&data=...)
+    if (window.location.hash) {
+      const hashStr = window.location.hash.substring(1);
+      const hashParams = new URLSearchParams(hashStr);
+      joinCode = hashParams.get('join') || hashParams.get('group');
+      payloadData = hashParams.get('data') || hashParams.get('payload') || hashParams.get('sync');
+    }
+
+    // 2. Check Search Query parameters (?join=...&data=...)
+    if (!payloadData || !joinCode) {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (!joinCode) joinCode = urlParams.get('join') || urlParams.get('group');
+      if (!payloadData) payloadData = urlParams.get('data') || urlParams.get('payload') || urlParams.get('sync');
+    }
+
+    // 3. If portable data payload is present, import & sync group immediately!
+    if (payloadData) {
+      const importResult = storage.importGroupPayload(payloadData);
+      if (importResult.success && importResult.group) {
+        const currentUserName = storage.getUserName();
+        storage.addMemberToGroup(importResult.group.id, currentUserName);
+        
+        // Clean URL to keep it pretty and prevent re-importing on reload
+        const cleanUrl = window.location.pathname + '?group=' + encodeURIComponent(importResult.group.id);
+        window.history.replaceState({}, document.title, cleanUrl);
+
+        this.openGroupDetail(importResult.group.id);
+        this.showToast(`🎉 Joined "${importResult.group.name}" with ${importResult.expenseCount || 0} expenses!`, 'success');
+        return;
+      } else {
+        this.showToast('Could not import group data: invalid payload.', 'danger');
+      }
+    }
+
+    // 4. If only join code was provided
     if (joinCode) {
       const group = storage.getGroupById(joinCode);
       if (group) {
@@ -113,7 +148,8 @@ class SplitzyApp {
         this.openGroupDetail(group.id);
         this.showToast(`Joined group: ${group.name}! 🚀`, 'success');
       } else {
-        this.showToast(`Group with code "${joinCode}" not found`, 'danger');
+        this.showToast(`Group code "${joinCode}" not found on this device. Paste the full Invite Link to sync!`, 'warning');
+        this.openJoinGroupModal(joinCode);
       }
     }
   }
@@ -844,24 +880,72 @@ class SplitzyApp {
     this.openGroupDetail(group.id);
   }
 
-  // Join Group by Code Modal
-  openJoinGroupModal() {
-    document.getElementById('joinGroupCodeInput').value = '';
+  // Join Group / Import Data Modal
+  openJoinGroupModal(prefill = '') {
+    const input = document.getElementById('joinGroupCodeInput');
+    if (input) input.value = prefill || '';
     const modalEl = document.getElementById('joinGroupModal');
     bootstrap.Modal.getOrCreateInstance(modalEl).show();
   }
 
+  async pasteIntoJoinInput() {
+    try {
+      const text = await navigator.clipboard.readText();
+      const input = document.getElementById('joinGroupCodeInput');
+      if (input && text) {
+        input.value = text.trim();
+        this.showToast('Pasted from clipboard!', 'info');
+      }
+    } catch (e) {
+      this.showToast('Please paste manually using Ctrl+V or long-press.', 'info');
+    }
+  }
+
   joinGroupByCode() {
     const input = document.getElementById('joinGroupCodeInput');
-    const code = (input?.value || '').trim();
-    if (!code) {
-      this.showToast('Please enter a Group Code', 'warning');
+    const rawVal = (input?.value || '').trim();
+    if (!rawVal) {
+      this.showToast('Please enter a Group Code or Invite Link', 'warning');
       return;
     }
 
+    let payload = null;
+    let code = rawVal;
+
+    // Check if input is a URL or contains data payload parameter
+    if (rawVal.includes('data=')) {
+      try {
+        const dummyBase = 'https://splitzy.app/';
+        const parsedUrl = new URL(rawVal.startsWith('http') ? rawVal : `${dummyBase}${rawVal}`);
+        const hashParams = new URLSearchParams(parsedUrl.hash.replace(/^#/, ''));
+        payload = hashParams.get('data') || parsedUrl.searchParams.get('data');
+        code = hashParams.get('join') || parsedUrl.searchParams.get('join') || code;
+      } catch (e) {
+        const match = rawVal.match(/data=([^&]+)/);
+        if (match) payload = decodeURIComponent(match[1]);
+      }
+    } else if (rawVal.length > 50 && !rawVal.startsWith('http')) {
+      // Direct raw or compressed string
+      payload = rawVal;
+    }
+
+    if (payload) {
+      const importResult = storage.importGroupPayload(payload);
+      if (importResult.success && importResult.group) {
+        const currentUserName = storage.getUserName();
+        storage.addMemberToGroup(importResult.group.id, currentUserName);
+        const modalEl = document.getElementById('joinGroupModal');
+        bootstrap.Modal.getInstance(modalEl)?.hide();
+        this.showToast(`🎉 Joined "${importResult.group.name}" with ${importResult.expenseCount || 0} expenses!`, 'success');
+        this.openGroupDetail(importResult.group.id);
+        return;
+      }
+    }
+
+    // Try finding by local code
     const group = storage.getGroupById(code);
     if (!group) {
-      this.showToast(`Group with code "${code}" was not found.`, 'danger');
+      this.showToast(`Group "${code}" was not found on this device. Paste the full Invite Link to sync it!`, 'danger');
       return;
     }
 
@@ -905,15 +989,31 @@ class SplitzyApp {
     }
   }
 
-  // Share Group Invite Modal
+  // Share Group Invite Modal with QR Sync
   openShareGroupModal(groupId) {
     const group = storage.getGroupById(groupId);
     if (!group) return;
 
-    document.getElementById('shareGroupModalTitle').textContent = `Invite Friends to ${group.name}`;
+    const inviteLink = GroupsManager.getInviteLink(group);
+    document.getElementById('shareGroupModalTitle').textContent = `Invite & Sync "${group.name}"`;
     document.getElementById('shareGroupCodeDisplay').textContent = group.code || group.id;
-    document.getElementById('shareGroupLinkInput').value = GroupsManager.getInviteLink(group);
+    document.getElementById('shareGroupLinkInput').value = inviteLink;
     document.getElementById('shareGroupCurrentGroupId').value = group.id;
+
+    // Render high-res QR code for another device to scan
+    const canvas = document.getElementById('shareGroupQrCanvas');
+    if (canvas && typeof QRious !== 'undefined') {
+      try {
+        new QRious({
+          element: canvas,
+          value: inviteLink,
+          size: 180,
+          level: 'L'
+        });
+      } catch (e) {
+        console.warn('[Splitzy] QRious generation error:', e);
+      }
+    }
 
     const modalEl = document.getElementById('shareGroupModal');
     bootstrap.Modal.getOrCreateInstance(modalEl).show();

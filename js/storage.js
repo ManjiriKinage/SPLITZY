@@ -312,6 +312,152 @@ class StorageManager {
     localStorage.setItem(STORAGE_KEYS.SETTLEMENTS, JSON.stringify([]));
   }
 
+  // --- Cross-Device Portable Sync Engine ---
+  /**
+   * Encodes a group and all its expenses into a compressed, portable payload string
+   */
+  exportGroupPayload(groupId) {
+    const group = this.getGroupById(groupId);
+    if (!group) return null;
+
+    const expenses = this.getExpensesByGroup(group.id);
+    const settlements = this.getSettlementsByGroup(group.id);
+    const memberUpis = {};
+    const allUpis = this.getMemberUpis();
+    (group.members || []).forEach(m => {
+      if (allUpis[m]) memberUpis[m] = allUpis[m];
+    });
+
+    const payload = {
+      v: 2,
+      g: group,
+      e: expenses,
+      s: settlements,
+      u: memberUpis,
+      ts: Date.now()
+    };
+
+    const jsonStr = JSON.stringify(payload);
+    try {
+      if (typeof LZString !== 'undefined' && LZString.compressToEncodedURIComponent) {
+        return LZString.compressToEncodedURIComponent(jsonStr);
+      }
+    } catch (e) {
+      console.warn('[Splitzy] LZString compression failed, falling back to base64:', e);
+    }
+    return encodeURIComponent(btoa(unescape(encodeURIComponent(jsonStr))));
+  }
+
+  /**
+   * Decodes a compressed or raw group payload and seamlessly merges it into local storage
+   */
+  importGroupPayload(payloadInput) {
+    if (!payloadInput) return { success: false, message: 'No payload provided' };
+
+    let payload = null;
+    if (typeof payloadInput === 'object' && payloadInput.g) {
+      payload = payloadInput;
+    } else if (typeof payloadInput === 'string') {
+      const cleanInput = payloadInput.trim();
+      // Try LZString decompress
+      try {
+        if (typeof LZString !== 'undefined' && LZString.decompressFromEncodedURIComponent) {
+          const decompressed = LZString.decompressFromEncodedURIComponent(cleanInput);
+          if (decompressed) {
+            payload = JSON.parse(decompressed);
+          }
+        }
+      } catch (e) {}
+
+      // Try URL-decoded base64 fallback
+      if (!payload) {
+        try {
+          const decoded = decodeURIComponent(escape(atob(decodeURIComponent(cleanInput))));
+          payload = JSON.parse(decoded);
+        } catch (e) {}
+      }
+
+      // Try raw JSON parse
+      if (!payload) {
+        try {
+          payload = JSON.parse(cleanInput);
+        } catch (e) {}
+      }
+    }
+
+    if (!payload || !payload.g || !payload.g.name) {
+      return { success: false, message: 'Invalid or corrupted group data payload.' };
+    }
+
+    const importedGroup = payload.g;
+    const importedExpenses = Array.isArray(payload.e) ? payload.e : [];
+    const importedSettlements = Array.isArray(payload.s) ? payload.s : [];
+    const importedUpis = payload.u || {};
+
+    // 1. Merge Group
+    const groups = this.getGroups();
+    const existingGroupIdx = groups.findIndex(g => g.id === importedGroup.id || (importedGroup.code && g.code === importedGroup.code));
+    let isNew = false;
+
+    if (existingGroupIdx !== -1) {
+      const mergedMembers = Array.from(new Set([
+        ...(groups[existingGroupIdx].members || []),
+        ...(importedGroup.members || [])
+      ]));
+      groups[existingGroupIdx] = {
+        ...groups[existingGroupIdx],
+        ...importedGroup,
+        members: mergedMembers,
+        updatedAt: new Date().toISOString()
+      };
+    } else {
+      groups.unshift(importedGroup);
+      isNew = true;
+    }
+    localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(groups));
+
+    // 2. Merge Expenses (Avoid duplicates by id)
+    const existingExpenses = this.getExpenses();
+    importedExpenses.forEach(impExp => {
+      const idx = existingExpenses.findIndex(e => e.id === impExp.id);
+      if (idx !== -1) {
+        existingExpenses[idx] = { ...existingExpenses[idx], ...impExp };
+      } else {
+        existingExpenses.unshift(impExp);
+      }
+    });
+    localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(existingExpenses));
+
+    // 3. Merge Settlements
+    const existingSettlements = this.getSettlements();
+    importedSettlements.forEach(impSet => {
+      const idx = existingSettlements.findIndex(s => s.id === impSet.id);
+      if (idx !== -1) {
+        existingSettlements[idx] = { ...existingSettlements[idx], ...impSet };
+      } else {
+        existingSettlements.unshift(impSet);
+      }
+    });
+    localStorage.setItem(STORAGE_KEYS.SETTLEMENTS, JSON.stringify(existingSettlements));
+
+    // 4. Merge Member UPIs
+    const existingUpis = this.getMemberUpis();
+    Object.assign(existingUpis, importedUpis);
+    localStorage.setItem(STORAGE_KEYS.MEMBER_UPIS, JSON.stringify(existingUpis));
+
+    // 5. Ensure current user profile is a member
+    const currentUser = this.getUserName();
+    this.addMemberToGroup(importedGroup.id, currentUser);
+
+    window.dispatchEvent(new CustomEvent('splitzy:data-updated'));
+    return {
+      success: true,
+      group: importedGroup,
+      expenseCount: importedExpenses.length,
+      isNew: isNew
+    };
+  }
+
   // --- Export & Import Backup ---
   exportJSON() {
     const data = {
