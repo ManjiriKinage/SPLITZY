@@ -62,6 +62,14 @@ class SplitzyApp {
       return;
     }
 
+    if (upi) {
+      const validation = StorageManager.validateUpiId(upi);
+      if (!validation.valid) {
+        this.showToast(validation.message, 'warning');
+        return;
+      }
+    }
+
     storage.setUserProfile(name, upi);
     const modalEl = document.getElementById('userOnboardingModal');
     bootstrap.Modal.getInstance(modalEl)?.hide();
@@ -91,6 +99,14 @@ class SplitzyApp {
     if (!name) {
       this.showToast('Name cannot be empty', 'warning');
       return;
+    }
+
+    if (upi) {
+      const validation = StorageManager.validateUpiId(upi);
+      if (!validation.valid) {
+        this.showToast(validation.message, 'warning');
+        return;
+      }
     }
 
     storage.setUserProfile(name, upi);
@@ -1045,6 +1061,23 @@ class SplitzyApp {
     const amount = parseFloat(document.getElementById('settleAmount')?.value) || 0;
     const qrCanvas = document.getElementById('settleUpiQrCanvas');
     const payLink = document.getElementById('settleUpiPayLink');
+    const statusBadge = document.getElementById('settleUpiStatus');
+    const feedbackEl = document.getElementById('settleUpiFeedback');
+
+    const upiId = storage.getMemberUpi(receiver);
+    const validation = StorageManager.validateUpiId(upiId);
+
+    if (statusBadge && feedbackEl) {
+      if (validation.valid) {
+        statusBadge.className = 'badge bg-success-subtle text-success border border-success-subtle px-2 py-1 small fw-bold';
+        statusBadge.innerHTML = '<i class="fa-solid fa-shield-halved me-1"></i> NPCI Verified';
+        feedbackEl.innerHTML = `<span class="text-success"><i class="fa-solid fa-circle-check me-1"></i> Payee format verified: <code>${validation.cleanUpi}</code></span>`;
+      } else {
+        statusBadge.className = 'badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1 small fw-bold';
+        statusBadge.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-1"></i> Verify Payee';
+        feedbackEl.innerHTML = `<span class="text-warning"><i class="fa-solid fa-circle-exclamation me-1"></i> Please check payee UPI handle before payment.</span>`;
+      }
+    }
 
     if (qrCanvas) {
       const upiUri = SettlementEngine.renderUpiQrCode(qrCanvas, receiver, amount);
@@ -1056,8 +1089,17 @@ class SplitzyApp {
 
   onSettleReceiverUpiChange(val) {
     const receiver = document.getElementById('settleTo')?.value;
-    if (receiver && val.trim()) {
-      storage.setMemberUpi(receiver, val.trim());
+    const feedbackEl = document.getElementById('settleUpiFeedback');
+    const cleanVal = (val || '').trim();
+
+    if (receiver && cleanVal) {
+      const validation = StorageManager.validateUpiId(cleanVal);
+      if (validation.valid) {
+        storage.setMemberUpi(receiver, validation.cleanUpi);
+        if (feedbackEl) feedbackEl.innerHTML = `<span class="text-success"><i class="fa-solid fa-circle-check me-1"></i> Valid UPI ID</span>`;
+      } else {
+        if (feedbackEl) feedbackEl.innerHTML = `<span class="text-danger"><i class="fa-solid fa-circle-xmark me-1"></i> ${validation.message}</span>`;
+      }
       this.refreshSettleUpiDetails();
     }
   }

@@ -171,14 +171,33 @@ class SettlementEngine {
   }
   /**
    * Generates standard Indian Unified Payments Interface (UPI) deep-link string
+   * Strict NPCI specification with parameter sanitization and injection prevention
    */
   static generateUpiUri(receiverName, amount, note = 'Splitzy Settlement') {
-    const upiId = storage.getMemberUpi(receiverName);
-    const cleanAmount = (parseFloat(amount) || 0).toFixed(2);
-    const cleanReceiver = encodeURIComponent(receiverName || 'Splitzy User');
-    const cleanNote = encodeURIComponent(note || 'Splitzy Payment');
-    
-    return `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${cleanReceiver}&am=${cleanAmount}&cu=INR&tn=${cleanNote}`;
+    const rawUpiId = storage.getMemberUpi(receiverName);
+    const validation = StorageManager.validateUpiId(rawUpiId);
+    const cleanUpi = validation.valid ? validation.cleanUpi : rawUpiId.replace(/[^a-zA-Z0-9.@_\-]/g, '');
+
+    // Strict positive numeric amount (NPCI max ₹1,00,000 per transaction guard)
+    const numAmount = Math.max(0.01, Math.min(100000, parseFloat(amount) || 0));
+    const cleanAmount = numAmount.toFixed(2);
+
+    // Sanitize receiver name (strip CRLF, URL delimiters, and scripts)
+    const cleanReceiver = (receiverName || 'Splitzy Payee')
+      .replace(/[\r\n&?=#<>"'`;\\]/g, '')
+      .trim()
+      .substring(0, 50);
+
+    // Sanitize note
+    const cleanNote = (note || 'Splitzy Settlement')
+      .replace(/[\r\n&?=#<>"'`;\\]/g, '')
+      .trim()
+      .substring(0, 50);
+
+    // Unique transaction reference for fraud prevention and deduplication
+    const txRef = `SPLITZY_${Date.now()}`;
+
+    return `upi://pay?pa=${encodeURIComponent(cleanUpi)}&pn=${encodeURIComponent(cleanReceiver)}&am=${cleanAmount}&cu=INR&tn=${encodeURIComponent(cleanNote)}&tr=${encodeURIComponent(txRef)}`;
   }
 
   /**

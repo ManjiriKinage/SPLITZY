@@ -83,6 +83,49 @@ class StorageManager {
     return profile;
   }
 
+  /**
+   * Validates if a string conforms to the official NPCI UPI Virtual Payment Address (VPA) standard
+   * Format: username@bankhandle (e.g. rahul@okaxis, 9876543210@paytm, user.name@ybl)
+   */
+  static validateUpiId(upiId) {
+    if (!upiId || typeof upiId !== 'string') {
+      return { valid: false, message: 'UPI ID cannot be empty.' };
+    }
+    const clean = upiId.trim();
+    
+    // Strict NPCI VPA regex: allows alphanumeric, dots, hyphens, underscores before '@', and valid bank handle after '@'
+    const upiRegex = /^[a-zA-Z0-9.\-_]{2,64}@[a-zA-Z0-9]{2,32}$/;
+    
+    if (!upiRegex.test(clean)) {
+      return { 
+        valid: false, 
+        message: 'Invalid UPI ID format. Should look like name@bank (e.g. rahul@okaxis or 9876543210@paytm).' 
+      };
+    }
+    
+    // Disallow dangerous injection characters
+    const forbiddenChars = /[<>'";`\\(){}\[\]\r\n&?=#%]/;
+    if (forbiddenChars.test(clean)) {
+      return { valid: false, message: 'UPI ID contains invalid or unsafe characters.' };
+    }
+    
+    return { valid: true, cleanUpi: clean.toLowerCase() };
+  }
+
+  /**
+   * Masks a UPI ID for privacy (e.g., 9876543210@paytm -> 98765***10@paytm)
+   */
+  static maskUpiId(upiId) {
+    if (!upiId || typeof upiId !== 'string' || !upiId.includes('@')) return upiId || '';
+    const [handle, provider] = upiId.split('@');
+    if (handle.length <= 4) {
+      return `${handle.substring(0, 1)}***@${provider}`;
+    }
+    const start = handle.substring(0, Math.min(3, Math.floor(handle.length / 2)));
+    const end = handle.substring(handle.length - 2);
+    return `${start}***${end}@${provider}`;
+  }
+
   // --- Member UPI ID Registry ---
   getMemberUpis() {
     try {
@@ -108,11 +151,22 @@ class StorageManager {
   }
 
   setMemberUpi(memberName, upiId) {
-    if (!memberName) return;
+    if (!memberName) return false;
     const upis = this.getMemberUpis();
-    upis[memberName] = (upiId || '').trim();
+    const cleanId = (upiId || '').trim();
+    if (cleanId) {
+      const validation = StorageManager.validateUpiId(cleanId);
+      if (validation.valid) {
+        upis[memberName] = validation.cleanUpi;
+      } else {
+        return false;
+      }
+    } else {
+      delete upis[memberName];
+    }
     localStorage.setItem(STORAGE_KEYS.MEMBER_UPIS, JSON.stringify(upis));
     window.dispatchEvent(new CustomEvent('splitzy:data-updated'));
+    return true;
   }
 
   // --- Theme Management ---
@@ -389,10 +443,54 @@ class StorageManager {
       return { success: false, message: 'Invalid or corrupted group data payload.' };
     }
 
-    const importedGroup = payload.g;
-    const importedExpenses = Array.isArray(payload.e) ? payload.e : [];
-    const importedSettlements = Array.isArray(payload.s) ? payload.s : [];
-    const importedUpis = payload.u || {};
+    const importedGroup = {
+      id: String(payload.g.id || '').replace(/[^a-zA-Z0-9_\-]/g, ''),
+      code: String(payload.g.code || '').replace(/[^a-zA-Z0-9_\-]/g, '').toUpperCase(),
+      name: String(payload.g.name || '').trim().substring(0, 100),
+      category: String(payload.g.category || 'General').substring(0, 50),
+      icon: String(payload.g.icon || '👥').substring(0, 10),
+      color: String(payload.g.color || '#4f46e5').substring(0, 20),
+      members: Array.isArray(payload.g.members) ? payload.g.members.map(m => String(m).trim()).filter(Boolean) : [],
+      createdBy: String(payload.g.createdBy || 'User'),
+      createdAt: payload.g.createdAt || new Date().toISOString()
+    };
+
+    const importedExpenses = Array.isArray(payload.e) ? payload.e.map(e => ({
+      id: String(e.id || 'exp_' + Math.random().toString(36).substring(2, 8)),
+      groupId: importedGroup.id,
+      title: String(e.title || 'Expense').trim().substring(0, 150),
+      category: String(e.category || 'General').substring(0, 50),
+      amount: Math.max(0, Math.min(10000000, parseFloat(e.amount) || 0)),
+      paidBy: String(e.paidBy || ''),
+      date: e.date || new Date().toISOString().split('T')[0],
+      notes: String(e.notes || '').substring(0, 300),
+      splitType: e.splitType || 'equal',
+      splits: (typeof e.splits === 'object' && e.splits !== null) ? e.splits : {},
+      createdAt: e.createdAt || new Date().toISOString()
+    })) : [];
+
+    const importedSettlements = Array.isArray(payload.s) ? payload.s.map(s => ({
+      id: String(s.id || 'set_' + Math.random().toString(36).substring(2, 8)),
+      groupId: importedGroup.id,
+      from: String(s.from || ''),
+      to: String(s.to || ''),
+      amount: Math.max(0, Math.min(10000000, parseFloat(s.amount) || 0)),
+      date: s.date || new Date().toISOString().split('T')[0],
+      upiRef: String(s.upiRef || '').substring(0, 100),
+      createdAt: s.createdAt || new Date().toISOString()
+    })) : [];
+
+    // Sanitize & validate imported UPI addresses
+    const importedUpis = {};
+    if (typeof payload.u === 'object' && payload.u !== null) {
+      Object.entries(payload.u).forEach(([name, upi]) => {
+        const cleanName = String(name).trim();
+        const validation = StorageManager.validateUpiId(String(upi));
+        if (cleanName && validation.valid) {
+          importedUpis[cleanName] = validation.cleanUpi;
+        }
+      });
+    }
 
     // 1. Merge Group
     const groups = this.getGroups();
@@ -440,7 +538,7 @@ class StorageManager {
     });
     localStorage.setItem(STORAGE_KEYS.SETTLEMENTS, JSON.stringify(existingSettlements));
 
-    // 4. Merge Member UPIs
+    // 4. Merge Member UPIs (Only validated ones)
     const existingUpis = this.getMemberUpis();
     Object.assign(existingUpis, importedUpis);
     localStorage.setItem(STORAGE_KEYS.MEMBER_UPIS, JSON.stringify(existingUpis));

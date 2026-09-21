@@ -808,7 +808,9 @@
               <span class="badge bg-primary-subtle text-primary border px-2 py-1 small fw-bold">
                 <i class="fa-solid fa-qrcode me-1"></i> Scan to Pay
               </span>
-              <small class="text-muted fw-bold">GPay / PhonePe / Paytm</small>
+              <span id="settleUpiStatus" class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 small fw-bold">
+                <i class="fa-solid fa-shield-halved me-1"></i> NPCI Compliant
+              </span>
             </div>
 
             <div class="d-flex justify-content-center my-2 p-2 bg-white rounded">
@@ -821,6 +823,20 @@
               <button class="btn btn-outline-secondary" type="button" onclick="App.copySettleUpiId()" title="Copy UPI ID">
                 <i class="fa-solid fa-copy"></i>
               </button>
+            </div>
+            <div id="settleUpiFeedback" class="small text-start text-muted mt-1" style="font-size: 0.75rem;"></div>
+          </div>
+
+          <!-- Anti-Phishing Security Notice -->
+          <div class="alert alert-warning-subtle border border-warning-subtle text-start p-2 mb-3 rounded-3 small">
+            <div class="d-flex align-items-start gap-2">
+              <i class="fa-solid fa-shield-halved text-warning fs-5 mt-1"></i>
+              <div>
+                <strong class="d-block text-dark" style="font-size: 0.8rem;"><i class="fa-solid fa-lock me-1"></i> Payment Security Advisory:</strong>
+                <span class="text-muted" style="font-size: 0.76rem;">
+                  Splitzy never asks for your UPI PIN, password, or bank OTP. Always verify the receiver's name inside GPay / PhonePe / Paytm before entering your secret UPI PIN.
+                </span>
+              </div>
             </div>
           </div>
 
