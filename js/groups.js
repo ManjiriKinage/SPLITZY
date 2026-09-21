@@ -23,6 +23,31 @@ class GroupsManager {
   }
 
   /**
+   * Renders clean professional icon instead of emojis
+   */
+  static renderGroupIcon(icon) {
+    if (!icon) return '<i class="fa-solid fa-users"></i>';
+    if (icon.startsWith('fa-') || icon.startsWith('fa ')) {
+      return `<i class="fa-solid ${icon}"></i>`;
+    }
+    const emojiMap = {
+      '🏖️': 'fa-plane',
+      '🏠': 'fa-house',
+      '🍕': 'fa-utensils',
+      '🚗': 'fa-car',
+      '✈️': 'fa-plane',
+      '🏨': 'fa-hotel',
+      '💼': 'fa-briefcase',
+      '🎉': 'fa-ticket',
+      '☕': 'fa-mug-hot',
+      '👥': 'fa-users',
+      '🚀': 'fa-briefcase'
+    };
+    const faIcon = emojiMap[icon] || 'fa-users';
+    return `<i class="fa-solid ${faIcon}"></i>`;
+  }
+
+  /**
    * Generates a web shareable invite link for a group, encoding all current group details & expenses
    */
   static getInviteLink(group) {
@@ -64,15 +89,15 @@ class GroupsManager {
           <div>
             <div class="d-flex align-items-start justify-content-between mb-3">
               <div class="d-flex align-items-center gap-3">
-                <div class="group-avatar" style="background: ${group.color || '#4f46e5'}15; color: ${group.color || '#4f46e5'}">
-                  ${group.icon || '👥'}
+                <div class="group-avatar" style="background: ${group.color || '#4f46e5'}18; color: ${group.color || '#4f46e5'}">
+                  ${this.renderGroupIcon(group.icon)}
                 </div>
                 <div>
                   <h5 class="mb-0 text-truncate" style="max-width: 170px;">${group.name}</h5>
                   <span class="group-code-badge">${group.code || group.id}</span>
                 </div>
               </div>
-              <span class="badge badge-category rounded-pill">${expenses.length} bills</span>
+              <span class="badge-custom badge-category">${expenses.length} bills</span>
             </div>
 
             <div class="d-flex align-items-center justify-content-between py-2 border-top border-bottom mb-3" style="border-color: var(--card-border) !important;">

@@ -40,7 +40,7 @@
       <!-- Right Action Items -->
       <div class="d-flex align-items-center gap-2 gap-md-3">
         <!-- PWA Install Prompt Button (Shown when browser supports install) -->
-        <button class="btn btn-sm btn-outline-warning d-none d-md-inline-flex align-items-center gap-1 rounded-pill" id="pwaInstallBtn" onclick="App.promptPwaInstall()" style="display: none;">
+        <button class="btn btn-sm btn-outline-warning d-none d-md-inline-flex align-items-center gap-1" id="pwaInstallBtn" onclick="App.promptPwaInstall()" style="display: none;">
           <i class="fa-solid fa-download"></i>
           <span>Install App</span>
         </button>
@@ -215,7 +215,7 @@
       <div class="splitzy-card mb-4">
         <div class="d-flex align-items-start justify-content-between flex-wrap gap-3">
           <div class="d-flex align-items-center gap-3">
-            <div class="group-avatar fs-2" id="groupDetailIcon">🏖️</div>
+            <div class="group-avatar fs-4" id="groupDetailIcon"><i class="fa-solid fa-users"></i></div>
             <div>
               <div class="d-flex align-items-center gap-2 flex-wrap">
                 <h3 class="mb-0 text-main fw-bold" id="groupDetailName">Group Name</h3>
@@ -459,7 +459,7 @@
               <input type="text" class="form-control" id="onboardingUserUpi" placeholder="e.g. yourname@okaxis or 9876543210@paytm">
             </div>
             <button type="submit" class="btn btn-splitzy-primary w-100 py-3 fw-bold fs-6">
-              Get Started 🚀
+              Get Started
             </button>
           </form>
         </div>
@@ -731,25 +731,25 @@
               <div class="col-8">
                 <label class="form-label fw-bold text-main">Category</label>
                 <select class="form-select" id="newGroupCategory">
-                  <option value="Trip">🏖️ Trip & Vacation</option>
-                  <option value="Rent & Living">🏠 Rent & Flatmates</option>
-                  <option value="Food & Fun">🍕 Food & Social</option>
-                  <option value="Travel">🚗 Travel</option>
-                  <option value="Project">🚀 Project & Work</option>
-                  <option value="General">👥 General</option>
+                  <option value="Trip">Trip & Vacation</option>
+                  <option value="Rent & Living">Rent & Flatmates</option>
+                  <option value="Food & Dining">Food & Dining</option>
+                  <option value="Travel">Travel & Commute</option>
+                  <option value="Work & Projects">Work & Projects</option>
+                  <option value="General" selected>General</option>
                 </select>
               </div>
               <div class="col-4">
                 <label class="form-label fw-bold text-main">Icon</label>
                 <select class="form-select" id="newGroupIcon">
-                  <option value="🏖️">🏖️ Beach</option>
-                  <option value="🏠">🏠 Home</option>
-                  <option value="🍕">🍕 Pizza</option>
-                  <option value="🚗">🚗 Car</option>
-                  <option value="✈️">✈️ Flight</option>
-                  <option value="🎉">🎉 Party</option>
-                  <option value="💼">💼 Work</option>
-                  <option value="☕">☕ Cafe</option>
+                  <option value="fa-plane">Plane</option>
+                  <option value="fa-house">Home</option>
+                  <option value="fa-utensils">Dining</option>
+                  <option value="fa-car">Travel</option>
+                  <option value="fa-briefcase">Work</option>
+                  <option value="fa-bag-shopping">Shopping</option>
+                  <option value="fa-film">Event</option>
+                  <option value="fa-users" selected>Friends</option>
                 </select>
               </div>
             </div>

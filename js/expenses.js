@@ -4,14 +4,14 @@
  */
 
 const EXPENSE_CATEGORIES = {
-  Food: { icon: '🍕', color: '#d97706' },
-  Travel: { icon: '🚗', color: '#0284c7' },
-  Hotel: { icon: '🏨', color: '#7c3aed' },
-  Utilities: { icon: '💡', color: '#059669' },
-  Shopping: { icon: '🛍️', color: '#db2777' },
-  Entertainment: { icon: '🎟️', color: '#4f46e5' },
-  Rent: { icon: '🏠', color: '#0d9488' },
-  General: { icon: '📦', color: '#475569' }
+  Food: { icon: 'fa-utensils', color: '#d97706', label: 'Food & Dining' },
+  Travel: { icon: 'fa-car', color: '#0284c7', label: 'Travel & Commute' },
+  Hotel: { icon: 'fa-hotel', color: '#7c3aed', label: 'Accommodation' },
+  Utilities: { icon: 'fa-bolt', color: '#059669', label: 'Utilities & Bills' },
+  Shopping: { icon: 'fa-bag-shopping', color: '#db2777', label: 'Shopping' },
+  Entertainment: { icon: 'fa-film', color: '#4f46e5', label: 'Entertainment' },
+  Rent: { icon: 'fa-house', color: '#0d9488', label: 'Rent & Housing' },
+  General: { icon: 'fa-receipt', color: '#64748b', label: 'General' }
 };
 
 class ExpensesManager {
@@ -19,6 +19,12 @@ class ExpensesManager {
 
   static getCategoryMeta(cat) {
     return EXPENSE_CATEGORIES[cat] || EXPENSE_CATEGORIES.General;
+  }
+
+  static renderCategoryIcon(catName) {
+    const meta = this.getCategoryMeta(catName);
+    const iconClass = meta.icon && meta.icon.startsWith('fa-') ? meta.icon : 'fa-receipt';
+    return `<i class="fa-solid ${iconClass}"></i>`;
   }
 
   static generateSplitInputs(group, currentSplitType = 'equal', existingSplits = {}, totalAmount = 0, existingItemized = null) {
@@ -481,8 +487,8 @@ class ExpensesManager {
     return `
       <div class="expense-item">
         <div class="d-flex align-items-center gap-3">
-          <div class="expense-cat-icon" style="background: ${cat.color}15; color: ${cat.color}">
-            ${cat.icon}
+          <div class="expense-cat-icon" style="background: ${cat.color}18; color: ${cat.color}">
+            ${ExpensesManager.renderCategoryIcon(expense.category)}
           </div>
           <div>
             <div class="d-flex align-items-center gap-2">

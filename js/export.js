@@ -34,27 +34,27 @@ class ExportManager {
     const totalSpent = expenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
     const inviteLink = GroupsManager.getInviteLink(group);
 
-    let text = `*${group.icon || '👥'} ${group.name} — Splitzy Summary*\n`;
-    text += `🔑 *Join Code:* ${group.code || group.id}\n`;
-    text += `💰 *Total Spent:* ₹${totalSpent.toLocaleString('en-IN')}\n\n`;
+    let text = `*${group.name} — Splitzy Summary*\n`;
+    text += `Group Code: ${group.code || group.id}\n`;
+    text += `Total Spent: ₹${totalSpent.toLocaleString('en-IN')}\n\n`;
 
-    text += `*📊 Balances:*\n`;
+    text += `*Member Balances:*\n`;
     Object.entries(balances).forEach(([m, data]) => {
       if (data.net > 0) text += `• ${m}: +₹${data.net} (Gets back)\n`;
       else if (data.net < 0) text += `• ${m}: -₹${Math.abs(data.net)} (Owes)\n`;
-      else text += `• ${m}: Settled ✅\n`;
+      else text += `• ${m}: Settled\n`;
     });
 
-    text += `\n*🤝 Simplified Settlements:*\n`;
+    text += `\n*Simplified Settlements:*\n`;
     if (simplified.length === 0) {
       text += `All settled up!\n`;
     } else {
       simplified.forEach((t, i) => {
-        text += `${i + 1}. *${t.from}* ➡️ *${t.to}*: ₹${t.amount.toLocaleString('en-IN')}\n`;
+        text += `${i + 1}. ${t.from} -> ${t.to}: ₹${t.amount.toLocaleString('en-IN')}\n`;
       });
     }
 
-    text += `\n🔗 *Join & view group online:* ${inviteLink}`;
+    text += `\nJoin & view group online: ${inviteLink}`;
     return text;
   }
 

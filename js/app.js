@@ -429,7 +429,9 @@ class SplitzyApp {
           return `
             <div class="d-flex align-items-center justify-content-between py-2 border-bottom" style="border-color: var(--card-border) !important;">
               <div class="d-flex align-items-center gap-2">
-                <span class="fs-5">${EXPENSE_CATEGORIES[e.category]?.icon || '📦'}</span>
+                <div class="expense-cat-icon" style="width: 34px; height: 34px; font-size: 0.95rem; background: ${EXPENSE_CATEGORIES[e.category]?.color || '#4f46e5'}18; color: ${EXPENSE_CATEGORIES[e.category]?.color || '#4f46e5'}">
+                  ${ExpensesManager.renderCategoryIcon(e.category)}
+                </div>
                 <div>
                   <strong class="d-block text-main text-truncate" style="max-width: 180px;">${e.title}</strong>
                   <small class="text-muted fw-semibold">${e.paidBy} in ${group ? group.name : 'group'}</small>
@@ -456,14 +458,14 @@ class SplitzyApp {
     }
 
     document.getElementById('groupDetailName').textContent = group.name;
-    document.getElementById('groupDetailIcon').textContent = group.icon || '👥';
+    document.getElementById('groupDetailIcon').innerHTML = GroupsManager.renderGroupIcon(group.icon);
     document.getElementById('groupDetailCode').textContent = group.code || group.id;
 
     // Member Chips
     const memberChipsContainer = document.getElementById('groupDetailMembers');
     if (memberChipsContainer) {
       memberChipsContainer.innerHTML = group.members.map(m => `
-        <span class="badge rounded-pill bg-light text-dark border p-2 px-3 me-1 mb-1 d-inline-flex align-items-center gap-1 fw-bold">
+        <span class="badge bg-body-secondary text-main border p-2 px-3 me-1 mb-1 d-inline-flex align-items-center gap-1 fw-bold" style="border-radius: var(--radius-sm);">
           <span class="avatar-chip me-1" style="background-color: ${GroupsManager.getMemberColor(m)}; width: 22px; height: 22px; font-size: 0.65rem;">
             ${GroupsManager.getInitials(m)}
           </span>
@@ -641,7 +643,9 @@ class SplitzyApp {
           return `
             <div class="expense-item">
               <div class="d-flex align-items-center gap-3">
-                <div class="expense-cat-icon">${EXPENSE_CATEGORIES[e.category]?.icon || '📦'}</div>
+                <div class="expense-cat-icon" style="background: ${EXPENSE_CATEGORIES[e.category]?.color || '#4f46e5'}18; color: ${EXPENSE_CATEGORIES[e.category]?.color || '#4f46e5'}">
+                  ${ExpensesManager.renderCategoryIcon(e.category)}
+                </div>
                 <div>
                   <h6 class="mb-0 text-main fw-bold">${e.title}</h6>
                   <small class="text-muted fw-semibold">${e.paidBy} in <strong>${group ? group.name : 'Group'}</strong> • ${ev.date.toLocaleDateString('en-IN')}</small>
@@ -656,7 +660,7 @@ class SplitzyApp {
           return `
             <div class="expense-item" style="border-left: 4px solid var(--success);">
               <div class="d-flex align-items-center gap-3">
-                <div class="expense-cat-icon" style="background: var(--success-light); color: var(--success);">🤝</div>
+                <div class="expense-cat-icon" style="background: var(--success-light); color: var(--success);"><i class="fa-solid fa-handshake-simple"></i></div>
                 <div>
                   <h6 class="mb-0 text-success fw-bold">Settlement Payment</h6>
                   <small class="text-muted fw-semibold"><strong>${s.payer}</strong> paid <strong>${s.receiver}</strong> in ${group ? group.name : 'Group'}</small>
@@ -694,7 +698,7 @@ class SplitzyApp {
     const targetGroupId = preselectedGroupId || this.activeGroupId || activeGroups[0]?.id;
 
     groupSelect.innerHTML = activeGroups.map(g => `
-      <option value="${g.id}" ${g.id === targetGroupId ? 'selected' : ''}>${g.icon || '👥'} ${g.name} (${g.code})</option>
+      <option value="${g.id}" ${g.id === targetGroupId ? 'selected' : ''}>${g.name} (${g.code})</option>
     `).join('');
 
     document.getElementById('expenseTitle').value = '';
@@ -720,7 +724,7 @@ class SplitzyApp {
     const groupSelect = document.getElementById('expenseGroupSelect');
     const groups = storage.getGroups();
     groupSelect.innerHTML = groups.map(g => `
-      <option value="${g.id}" ${g.id === expense.groupId ? 'selected' : ''}>${g.icon || '👥'} ${g.name}</option>
+      <option value="${g.id}" ${g.id === expense.groupId ? 'selected' : ''}>${g.name}</option>
     `).join('');
 
     document.getElementById('expenseTitle').value = expense.title;
@@ -875,7 +879,7 @@ class SplitzyApp {
   saveNewGroup() {
     const name = document.getElementById('newGroupName').value.trim();
     const category = document.getElementById('newGroupCategory').value;
-    const icon = document.getElementById('newGroupIcon').value || '👥';
+    const icon = document.getElementById('newGroupIcon').value || 'fa-users';
 
     if (!name) {
       this.showToast('Please enter a group name', 'danger');
