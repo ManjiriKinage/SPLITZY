@@ -2,7 +2,7 @@
  * SPLITZY 2.0 — Service Worker for Offline PWA Support
  */
 
-const CACHE_NAME = 'splitzy-cache-v2.3';
+const CACHE_NAME = 'splitzy-cache-v2.4';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -11,6 +11,7 @@ const ASSETS_TO_CACHE = [
   './js/firebase-config.js',
   './js/realtime.js',
   './js/storage.js',
+  './js/auth.js',
   './js/settlement.js',
   './js/groups.js',
   './js/expenses.js',

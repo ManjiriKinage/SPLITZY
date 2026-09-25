@@ -13,113 +13,312 @@ class SplitzyApp {
     this.deferredPrompt = null;
   }
 
-  init() {
+  async init() {
     // 0. Theme initialization
     const savedTheme = storage.getTheme();
     document.documentElement.setAttribute('data-theme', savedTheme);
     this.updateThemeIcon(savedTheme);
 
-    // 1. Real-Time Cloud Sync Initialization
+    // 1. JWT Authentication Initialization
+    if (typeof authManager !== 'undefined') {
+      await authManager.init();
+    }
+
+    // 2. Real-Time Cloud Sync Initialization
     if (typeof realtimeSync !== 'undefined') {
       realtimeSync.init();
       this.updateCloudSyncStatusBadge(realtimeSync.status);
     }
 
-    // 2. User Profile Setup / Onboarding Check
-    this.checkUserProfileOnboarding();
+    // 3. User Profile Setup / Auth Check
+    this.checkUserAuthStatus();
 
-    // 3. Navigation Setup (Desktop + Mobile)
+    // 4. Navigation Setup (Desktop + Mobile)
     this.setupNavigation();
 
-    // 4. Global Event Listeners & PWA Install Hook
+    // 5. Global Event Listeners & PWA Install Hook
     this.setupEventListeners();
 
-    // 5. Check URL parameters for ?join=CODE or ?group=CODE
+    // 6. Check URL parameters for ?join=CODE or ?group=CODE
     this.handleUrlJoinParameters();
 
-    // 6. Initial View Render
+    // 7. Initial View Render
     this.renderActiveView();
   }
 
-  // --- Onboarding & Profile Management ---
-  checkUserProfileOnboarding() {
-    const profile = storage.getUserProfile();
-    const userBtnLabel = document.getElementById('navbarUserName');
+  // --- Authentication & Profile Management ---
+  checkUserAuthStatus() {
+    const isAuth = typeof authManager !== 'undefined' && authManager.isAuthenticated();
+    const user = isAuth ? authManager.getUser() : storage.getUserProfile();
 
-    if (!profile) {
+    this.updateUserProfileUI(user, isAuth);
+
+    if (!isAuth && !user) {
       setTimeout(() => {
-        const modalEl = document.getElementById('userOnboardingModal');
-        if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
-      }, 400);
-      if (userBtnLabel) userBtnLabel.textContent = 'Set Name';
+        this.openAuthModal('signup');
+      }, 500);
+    }
+  }
+
+  updateUserProfileUI(user, isAuthenticated = false) {
+    const userName = user ? user.name : 'You';
+    const userEmail = user?.email || (isAuthenticated ? 'Active User' : 'Guest Mode');
+    const userColor = user?.color || GroupsManager.getMemberColor(userName);
+    const initials = GroupsManager.getInitials(userName);
+
+    const navName = document.getElementById('navbarUserName');
+    const navChip = document.getElementById('navbarAvatarChip');
+    const dropName = document.getElementById('dropdownUserFullName');
+    const dropEmail = document.getElementById('dropdownUserEmail');
+    const modalChip = document.getElementById('profileModalAvatarChip');
+    const modalHeader = document.getElementById('profileModalNameHeader');
+    const modalEmail = document.getElementById('profileModalEmailHeader');
+
+    if (navName) navName.textContent = userName;
+    if (navChip) {
+      navChip.textContent = initials;
+      navChip.style.backgroundColor = userColor;
+    }
+    if (dropName) dropName.textContent = userName;
+    if (dropEmail) dropEmail.textContent = userEmail;
+    if (modalChip) {
+      modalChip.textContent = initials;
+      modalChip.style.backgroundColor = userColor;
+    }
+    if (modalHeader) modalHeader.textContent = userName;
+    if (modalEmail) modalEmail.textContent = userEmail;
+  }
+
+  openAuthModal(mode = 'signin') {
+    const modalEl = document.getElementById('authModal');
+    if (!modalEl) return;
+
+    if (mode === 'signup') {
+      const tabBtn = document.getElementById('tab-signup-btn');
+      if (tabBtn) bootstrap.Tab.getOrCreateInstance(tabBtn).show();
     } else {
-      if (userBtnLabel) userBtnLabel.textContent = profile.name;
-    }
-  }
-
-  saveUserProfileFromModal() {
-    const nameInput = document.getElementById('onboardingUserName');
-    const upiInput = document.getElementById('onboardingUserUpi');
-    const name = nameInput?.value.trim();
-    const upi = upiInput?.value.trim() || '';
-
-    if (!name) {
-      this.showToast('Please enter your name', 'warning');
-      return;
+      const tabBtn = document.getElementById('tab-signin-btn');
+      if (tabBtn) bootstrap.Tab.getOrCreateInstance(tabBtn).show();
     }
 
-    if (upi) {
-      const validation = StorageManager.validateUpiId(upi);
-      if (!validation.valid) {
-        this.showToast(validation.message, 'warning');
-        return;
-      }
-    }
-
-    storage.setUserProfile(name, upi);
-    const modalEl = document.getElementById('userOnboardingModal');
-    bootstrap.Modal.getInstance(modalEl)?.hide();
-
-    this.showToast(`Welcome to Splitzy, ${name}! 🎉`, 'success');
-    this.renderActiveView();
-  }
-
-  openProfileEditModal() {
-    const profile = storage.getUserProfile();
-    const nameInput = document.getElementById('editProfileNameInput');
-    const upiInput = document.getElementById('editProfileUpiInput');
-
-    if (nameInput) nameInput.value = profile ? profile.name : '';
-    if (upiInput) upiInput.value = profile ? (profile.upiId || '') : '';
-
-    const modalEl = document.getElementById('profileEditModal');
     bootstrap.Modal.getOrCreateInstance(modalEl).show();
   }
 
-  saveProfileEdit() {
-    const nameInput = document.getElementById('editProfileNameInput');
-    const upiInput = document.getElementById('editProfileUpiInput');
-    const name = nameInput?.value.trim();
-    const upi = upiInput?.value.trim() || '';
+  async handleSignIn() {
+    const emailInput = document.getElementById('loginEmailInput');
+    const passInput = document.getElementById('loginPasswordInput');
+    const email = emailInput?.value.trim();
+    const password = passInput?.value.trim();
 
-    if (!name) {
-      this.showToast('Name cannot be empty', 'warning');
+    if (!email || !password) {
+      this.showToast('Please enter your email and password.', 'warning');
       return;
     }
 
-    if (upi) {
-      const validation = StorageManager.validateUpiId(upi);
-      if (!validation.valid) {
-        this.showToast(validation.message, 'warning');
-        return;
+    if (typeof authManager !== 'undefined') {
+      const result = await authManager.login(email, password);
+      if (result.success) {
+        this.showToast(result.message, 'success');
+        const modalEl = document.getElementById('authModal');
+        bootstrap.Modal.getInstance(modalEl)?.hide();
+        this.renderActiveView();
+      } else {
+        this.showToast(result.message, 'danger');
+      }
+    }
+  }
+
+  async handleSignUp() {
+    const nameInput = document.getElementById('signupNameInput');
+    const emailInput = document.getElementById('signupEmailInput');
+    const passInput = document.getElementById('signupPasswordInput');
+    const upiInput = document.getElementById('signupUpiInput');
+
+    const name = nameInput?.value.trim();
+    const email = emailInput?.value.trim();
+    const password = passInput?.value.trim();
+    const upi = upiInput?.value.trim() || '';
+
+    if (!name || !email || !password) {
+      this.showToast('Please fill in all required fields.', 'warning');
+      return;
+    }
+
+    if (typeof authManager !== 'undefined') {
+      const result = await authManager.register(name, email, password, upi);
+      if (result.success) {
+        this.showToast(result.message, 'success');
+        const modalEl = document.getElementById('authModal');
+        bootstrap.Modal.getInstance(modalEl)?.hide();
+        this.renderActiveView();
+      } else {
+        this.showToast(result.message, 'danger');
+      }
+    }
+  }
+
+  togglePasswordVisibility(inputId, btn) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const isPass = input.type === 'password';
+    input.type = isPass ? 'text' : 'password';
+    const icon = btn.querySelector('i');
+    if (icon) {
+      icon.className = isPass ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+    }
+  }
+
+  openProfileModal(activeTab = 'profile') {
+    const user = typeof authManager !== 'undefined' ? authManager.getUser() : storage.getUserProfile();
+    const token = typeof authManager !== 'undefined' ? authManager.getToken() : null;
+
+    document.getElementById('profileFullNameInput').value = user?.name || storage.getUserName();
+    document.getElementById('profileEmailInput').value = user?.email || '';
+    document.getElementById('profileUpiInput').value = user?.upiId || storage.getUserUpiId();
+
+    // Render Color Picker palette
+    const colorContainer = document.getElementById('avatarColorPickerContainer');
+    if (colorContainer) {
+      const palette = [
+        '#4338ca', '#059669', '#d97706', '#dc2626',
+        '#0284c7', '#7c3aed', '#db2777', '#2563eb', '#0d9488'
+      ];
+      const currentColor = user?.color || '#4338ca';
+      colorContainer.innerHTML = palette.map(c => `
+        <div class="color-swatch-chip ${c === currentColor ? 'selected' : ''}" 
+             style="width: 28px; height: 28px; border-radius: 50%; background-color: ${c}; cursor: pointer; border: 2px solid ${c === currentColor ? 'var(--text-main)' : 'transparent'};"
+             onclick="App.selectAvatarColor('${c}')">
+        </div>
+      `).join('');
+    }
+
+    // JWT Diagnostics
+    const jwtPreview = document.getElementById('jwtTokenPreview');
+    const jwtExpiry = document.getElementById('jwtExpiryText');
+    if (jwtPreview) {
+      jwtPreview.textContent = token ? `${token.substring(0, 32)}...` : 'No active JWT token';
+    }
+    if (jwtExpiry) {
+      if (authManager?.tokenPayload?.exp) {
+        const expDate = new Date(authManager.tokenPayload.exp * 1000);
+        jwtExpiry.textContent = `Valid until: ${expDate.toLocaleDateString()} ${expDate.toLocaleTimeString()}`;
+      } else {
+        jwtExpiry.textContent = 'Session: Local Client Storage';
       }
     }
 
-    storage.setUserProfile(name, upi);
-    const modalEl = document.getElementById('profileEditModal');
-    bootstrap.Modal.getInstance(modalEl)?.hide();
-    this.showToast('Profile and UPI updated!', 'success');
-    this.renderActiveView();
+    // Activate requested tab
+    if (activeTab === 'security') {
+      const tabBtn = document.getElementById('tab-security-btn');
+      if (tabBtn) bootstrap.Tab.getOrCreateInstance(tabBtn).show();
+    } else if (activeTab === 'data') {
+      const tabBtn = document.getElementById('tab-data-btn');
+      if (tabBtn) bootstrap.Tab.getOrCreateInstance(tabBtn).show();
+    } else {
+      const tabBtn = document.getElementById('tab-profile-btn');
+      if (tabBtn) bootstrap.Tab.getOrCreateInstance(tabBtn).show();
+    }
+
+    const modalEl = document.getElementById('profileModal');
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+  }
+
+  selectAvatarColor(color) {
+    this.selectedAvatarColor = color;
+    document.querySelectorAll('.color-swatch-chip').forEach(el => {
+      el.style.border = el.style.backgroundColor === color ? '2px solid var(--text-main)' : 'transparent';
+    });
+    const chip = document.getElementById('profileModalAvatarChip');
+    if (chip) chip.style.backgroundColor = color;
+  }
+
+  async saveProfileInfo() {
+    const name = document.getElementById('profileFullNameInput').value.trim();
+    const email = document.getElementById('profileEmailInput').value.trim();
+    const upi = document.getElementById('profileUpiInput').value.trim();
+    const color = this.selectedAvatarColor || null;
+
+    if (!name) {
+      this.showToast('Please enter your full name', 'warning');
+      return;
+    }
+
+    if (typeof authManager !== 'undefined') {
+      const result = await authManager.updateProfile(name, email, upi, color);
+      if (result.success) {
+        this.showToast(result.message, 'success');
+        this.updateUserProfileUI(authManager.getUser(), true);
+        const modalEl = document.getElementById('profileModal');
+        bootstrap.Modal.getInstance(modalEl)?.hide();
+        this.renderActiveView();
+      } else {
+        this.showToast(result.message, 'danger');
+      }
+    } else {
+      storage.setUserProfile(name, upi);
+      this.showToast('Profile updated!', 'success');
+      const modalEl = document.getElementById('profileModal');
+      bootstrap.Modal.getInstance(modalEl)?.hide();
+      this.renderActiveView();
+    }
+  }
+
+  async handleChangePassword() {
+    const currPass = document.getElementById('currPasswordInput').value.trim();
+    const newPass = document.getElementById('newPasswordInput').value.trim();
+    const confirmPass = document.getElementById('confirmNewPasswordInput').value.trim();
+
+    if (!currPass || !newPass) {
+      this.showToast('Please enter current and new passwords.', 'warning');
+      return;
+    }
+
+    if (newPass !== confirmPass) {
+      this.showToast('New passwords do not match. Please re-enter.', 'warning');
+      return;
+    }
+
+    if (newPass.length < 6) {
+      this.showToast('Password must be at least 6 characters.', 'warning');
+      return;
+    }
+
+    if (typeof authManager !== 'undefined') {
+      const result = await authManager.changePassword(currPass, newPass);
+      if (result.success) {
+        this.showToast(result.message, 'success');
+        document.getElementById('currPasswordInput').value = '';
+        document.getElementById('newPasswordInput').value = '';
+        document.getElementById('confirmNewPasswordInput').value = '';
+      } else {
+        this.showToast(result.message, 'danger');
+      }
+    }
+  }
+
+  copyJwtToken() {
+    const token = typeof authManager !== 'undefined' ? authManager.getToken() : '';
+    if (token) {
+      navigator.clipboard.writeText(token);
+      this.showToast('JWT Token copied to clipboard! 📋', 'success');
+    } else {
+      this.showToast('No active token to copy.', 'info');
+    }
+  }
+
+  logout() {
+    if (confirm('Are you sure you want to sign out of Splitzy?')) {
+      if (typeof authManager !== 'undefined') {
+        authManager.logout(false);
+      }
+      const modalEl = document.getElementById('profileModal');
+      bootstrap.Modal.getInstance(modalEl)?.hide();
+      this.updateUserProfileUI(null, false);
+      this.showToast('Signed out successfully. 👋', 'info');
+      setTimeout(() => {
+        this.openAuthModal('signin');
+      }, 300);
+    }
   }
 
   // --- URL Join Deep Links & Cross-Device Portable Sync ---
@@ -199,9 +398,15 @@ class SplitzyApp {
       this.updateCloudSyncStatusBadge(e.detail.status);
     });
 
+    // JWT Auth & Profile updates
+    window.addEventListener('splitzy:auth-changed', (e) => {
+      this.updateUserProfileUI(e.detail.user, e.detail.isAuthenticated);
+      this.renderActiveView();
+    });
+
     window.addEventListener('splitzy:user-updated', (e) => {
-      const userBtnLabel = document.getElementById('navbarUserName');
-      if (userBtnLabel) userBtnLabel.textContent = e.detail.name;
+      const user = typeof authManager !== 'undefined' ? authManager.getUser() : e.detail;
+      this.updateUserProfileUI(user, typeof authManager !== 'undefined' && authManager.isAuthenticated());
       this.renderActiveView();
     });
 

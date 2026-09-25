@@ -45,11 +45,27 @@
           <span>Install App</span>
         </button>
 
-        <!-- User Profile Pill -->
-        <button class="user-profile-btn" onclick="App.openProfileEditModal()" title="Click to edit your profile & UPI ID">
-          <i class="fa-solid fa-circle-user text-primary fs-5"></i>
-          <span id="navbarUserName">You</span>
-        </button>
+        <!-- User Profile Dropdown -->
+        <div class="dropdown">
+          <button class="user-profile-btn dropdown-toggle" type="button" id="userProfileDropdownBtn" data-bs-toggle="dropdown" aria-expanded="false">
+            <span class="avatar-chip user-avatar-chip" id="navbarAvatarChip" style="width: 24px; height: 24px; font-size: 0.72rem; background-color: var(--primary);">U</span>
+            <span id="navbarUserName">You</span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="userProfileDropdownBtn" style="border-radius: var(--radius-md); min-width: 220px;">
+            <li class="px-3 py-2 border-bottom">
+              <div class="fw-bold text-main text-truncate" id="dropdownUserFullName">You</div>
+              <small class="text-muted d-block text-truncate" id="dropdownUserEmail">Signed in</small>
+              <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-0 mt-1 small" style="font-size: 0.7rem;">
+                <i class="fa-solid fa-shield-halved me-1"></i>JWT Active
+              </span>
+            </li>
+            <li><a class="dropdown-item py-2 d-flex align-items-center gap-2" href="javascript:void(0)" onclick="App.openProfileModal('profile')"><i class="fa-solid fa-user text-primary"></i>Profile Details</a></li>
+            <li><a class="dropdown-item py-2 d-flex align-items-center gap-2" href="javascript:void(0)" onclick="App.openProfileModal('security')"><i class="fa-solid fa-key text-warning"></i>Security & Password</a></li>
+            <li><a class="dropdown-item py-2 d-flex align-items-center gap-2" href="javascript:void(0)" onclick="App.openCloudSettingsModal()"><i class="fa-solid fa-cloud-bolt text-info"></i>Cloud Sync Settings</a></li>
+            <li><hr class="dropdown-divider my-1"></li>
+            <li><a class="dropdown-item py-2 d-flex align-items-center gap-2 text-danger" href="javascript:void(0)" onclick="App.logout()"><i class="fa-solid fa-right-from-bracket"></i>Sign Out</a></li>
+          </ul>
+        </div>
 
         <!-- Real-Time Cloud Sync Button / Badge -->
         <button class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 rounded-pill px-2 py-1" id="cloudSyncStatusBtn" onclick="App.openCloudSettingsModal()" title="Real-time Cloud Sync Settings">
@@ -436,7 +452,7 @@
       <i class="fa-solid fa-clock-rotate-left"></i>
       <span>Activity</span>
     </button>
-    <button class="mobile-nav-item" onclick="App.openProfileEditModal()">
+    <button class="mobile-nav-item" onclick="App.openProfileModal()">
       <i class="fa-solid fa-circle-user"></i>
       <span>Profile</span>
     </button>
@@ -446,72 +462,252 @@
        MODALS & DIALOGS
        ========================================================================= -->
 
-  <!-- Modal 1: User Onboarding -->
-  <div class="modal fade" id="userOnboardingModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
+  <!-- Consolidated Modal 1: User Login & JWT Registration -->
+  <div class="modal fade" id="authModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="authModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header border-0 pb-0">
-          <h4 class="modal-title fw-bold text-main">Welcome to Splitzy! 👋</h4>
+      <div class="modal-content border-0 shadow-lg" style="border-radius: var(--radius-lg);">
+        <div class="modal-header border-0 pb-0 text-center d-flex flex-column align-items-center">
+          <div class="brand-logo-icon mb-2" style="width: 44px; height: 44px; font-size: 1.25rem;">
+            <i class="fa-solid fa-receipt"></i>
+          </div>
+          <h4 class="modal-title fw-bold text-main" id="authModalLabel">Welcome to Splitzy</h4>
+          <p class="text-muted small mb-3" id="authModalSubtitle">Secure bill splitting with real-time sync & JWT auth</p>
+
+          <!-- Auth Mode Nav Pills (Sign In vs Register) -->
+          <ul class="nav nav-pills w-100 p-1 bg-body-secondary rounded-3" id="authNavTabs" role="tablist">
+            <li class="nav-item flex-grow-1" role="presentation">
+              <button class="nav-link active w-100 py-2 fw-bold small" id="tab-signin-btn" data-bs-toggle="pill" data-bs-target="#tab-signin" type="button" role="tab">
+                <i class="fa-solid fa-right-to-bracket me-1"></i> Sign In
+              </button>
+            </li>
+            <li class="nav-item flex-grow-1" role="presentation">
+              <button class="nav-link w-100 py-2 fw-bold small" id="tab-signup-btn" data-bs-toggle="pill" data-bs-target="#tab-signup" type="button" role="tab">
+                <i class="fa-solid fa-user-plus me-1"></i> Create Account
+              </button>
+            </li>
+          </ul>
         </div>
-        <div class="modal-body py-4">
-          <p class="text-muted mb-3">Split group bills seamlessly, pay via dynamic UPI QR codes, and simplify debts with your friends.</p>
-          <form onsubmit="event.preventDefault(); App.saveUserProfileFromModal();">
-            <div class="mb-3">
-              <label class="form-label fw-bold text-main">What should we call you?</label>
-              <input type="text" class="form-control form-control-lg" id="onboardingUserName" placeholder="e.g. Manjiri, Alex, Rahul..." required autofocus>
+
+        <div class="modal-body pt-3 pb-4">
+          <div class="tab-content" id="authTabContent">
+            <!-- 1. Sign In Form -->
+            <div class="tab-pane fade show active" id="tab-signin" role="tabpanel">
+              <form onsubmit="event.preventDefault(); App.handleSignIn();">
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-main">Email or Username</label>
+                  <div class="input-group">
+                    <span class="input-group-text"><i class="fa-solid fa-envelope text-muted"></i></span>
+                    <input type="text" class="form-control" id="loginEmailInput" placeholder="name@example.com" required autofocus>
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-main">Password</label>
+                  <div class="input-group">
+                    <span class="input-group-text"><i class="fa-solid fa-lock text-muted"></i></span>
+                    <input type="password" class="form-control" id="loginPasswordInput" placeholder="Enter your password" required>
+                    <button class="btn btn-outline-secondary" type="button" onclick="App.togglePasswordVisibility('loginPasswordInput', this)" title="Toggle password visibility">
+                      <i class="fa-solid fa-eye"></i>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="loginRememberMe" checked>
+                    <label class="form-check-label small text-muted" for="loginRememberMe">Stay logged in</label>
+                  </div>
+                  <span class="badge bg-primary-subtle text-primary border border-primary-subtle small font-monospace">
+                    <i class="fa-solid fa-key me-1"></i>HS256 JWT
+                  </span>
+                </div>
+
+                <button type="submit" class="btn btn-splitzy-primary w-100 py-2 fw-bold fs-6" id="loginSubmitBtn">
+                  <i class="fa-solid fa-arrow-right-to-bracket me-1"></i> Sign In
+                </button>
+              </form>
             </div>
-            <div class="mb-4">
-              <label class="form-label fw-bold text-main">Your UPI ID <small class="text-muted fw-normal">(for receiving direct settlements)</small></label>
-              <input type="text" class="form-control" id="onboardingUserUpi" placeholder="e.g. yourname@okaxis or 9876543210@paytm">
+
+            <!-- 2. Sign Up Form -->
+            <div class="tab-pane fade" id="tab-signup" role="tabpanel">
+              <form onsubmit="event.preventDefault(); App.handleSignUp();">
+                <div class="mb-2">
+                  <label class="form-label small fw-bold text-main">Full Name <span class="text-danger">*</span></label>
+                  <div class="input-group">
+                    <span class="input-group-text"><i class="fa-solid fa-user text-muted"></i></span>
+                    <input type="text" class="form-control" id="signupNameInput" placeholder="e.g. Manjiri Kinage" required>
+                  </div>
+                </div>
+                <div class="mb-2">
+                  <label class="form-label small fw-bold text-main">Email Address <span class="text-danger">*</span></label>
+                  <div class="input-group">
+                    <span class="input-group-text"><i class="fa-solid fa-at text-muted"></i></span>
+                    <input type="email" class="form-control" id="signupEmailInput" placeholder="name@example.com" required>
+                  </div>
+                </div>
+                <div class="mb-2">
+                  <label class="form-label small fw-bold text-main">Create Password <span class="text-danger">*</span></label>
+                  <div class="input-group">
+                    <span class="input-group-text"><i class="fa-solid fa-lock text-muted"></i></span>
+                    <input type="password" class="form-control" id="signupPasswordInput" minlength="6" placeholder="Min. 6 characters" required>
+                    <button class="btn btn-outline-secondary" type="button" onclick="App.togglePasswordVisibility('signupPasswordInput', this)">
+                      <i class="fa-solid fa-eye"></i>
+                    </button>
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-main">UPI ID <small class="text-muted fw-normal">(Optional, for settlements)</small></label>
+                  <div class="input-group">
+                    <span class="input-group-text"><i class="fa-solid fa-wallet text-muted"></i></span>
+                    <input type="text" class="form-control font-monospace" id="signupUpiInput" placeholder="e.g. name@okaxis">
+                  </div>
+                </div>
+
+                <button type="submit" class="btn btn-splitzy-success w-100 py-2 fw-bold fs-6" id="signupSubmitBtn">
+                  <i class="fa-solid fa-user-check me-1"></i> Create Account & Issue JWT
+                </button>
+              </form>
             </div>
-            <button type="submit" class="btn btn-splitzy-primary w-100 py-3 fw-bold fs-6">
-              Get Started
-            </button>
-          </form>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Modal 2: Edit Profile & UPI ID -->
-  <div class="modal fade" id="profileEditModal" tabindex="-1">
+  <!-- Consolidated Modal 2: User Profile & Security Center -->
+  <div class="modal fade" id="profileModal" tabindex="-1" aria-labelledby="profileModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title text-main fw-bold"><i class="fa-solid fa-circle-user me-2 text-primary"></i>Your Profile & UPI Details</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      <div class="modal-content border-0 shadow-lg" style="border-radius: var(--radius-lg);">
+        <div class="modal-header border-bottom py-3">
+          <div class="d-flex align-items-center gap-2">
+            <span class="avatar-chip" id="profileModalAvatarChip" style="width: 38px; height: 38px; font-size: 1rem; background: var(--primary);">U</span>
+            <div>
+              <h5 class="modal-title text-main fw-bold mb-0" id="profileModalNameHeader">Account & Profile</h5>
+              <small class="text-muted" id="profileModalEmailHeader">Manage security & preferences</small>
+            </div>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
-        <div class="modal-body">
-          <form onsubmit="event.preventDefault(); App.saveProfileEdit();">
-            <div class="mb-3">
-              <label class="form-label fw-bold text-main">Display Name</label>
-              <input type="text" class="form-control" id="editProfileNameInput" required>
-            </div>
-            <div class="mb-3">
-              <label class="form-label fw-bold text-main">Your UPI ID <small class="text-muted fw-normal">(GPay / PhonePe / Paytm)</small></label>
-              <input type="text" class="form-control font-monospace" id="editProfileUpiInput" placeholder="e.g. rahul@okaxis">
-              <small class="text-muted mt-1 d-block">Used when friends scan QR codes to pay you back directly.</small>
+
+        <div class="modal-body p-3">
+          <!-- Profile Tabs -->
+          <ul class="nav nav-tabs nav-fill mb-3" id="profileTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active fw-bold small py-2" id="tab-profile-btn" data-bs-toggle="tab" data-bs-target="#tab-profile-pane" type="button" role="tab">
+                <i class="fa-solid fa-circle-user me-1"></i> Profile
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link fw-bold small py-2" id="tab-security-btn" data-bs-toggle="tab" data-bs-target="#tab-security-pane" type="button" role="tab">
+                <i class="fa-solid fa-shield-halved me-1"></i> Security & JWT
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link fw-bold small py-2" id="tab-data-btn" data-bs-toggle="tab" data-bs-target="#tab-data-pane" type="button" role="tab">
+                <i class="fa-solid fa-database me-1"></i> Backup & Data
+              </button>
+            </li>
+          </ul>
+
+          <div class="tab-content" id="profileTabsContent">
+            <!-- 1. Profile Info Tab -->
+            <div class="tab-pane fade show active" id="tab-profile-pane" role="tabpanel">
+              <form onsubmit="event.preventDefault(); App.saveProfileInfo();">
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-main">Full Name <span class="text-danger">*</span></label>
+                  <input type="text" class="form-control" id="profileFullNameInput" required>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-main">Email Address</label>
+                  <input type="email" class="form-control font-monospace" id="profileEmailInput" placeholder="name@example.com">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-main">Default UPI ID <small class="text-muted fw-normal">(for receiving settlements)</small></label>
+                  <input type="text" class="form-control font-monospace" id="profileUpiInput" placeholder="e.g. rahul@okaxis">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-main">Avatar Color Theme</label>
+                  <div class="d-flex gap-2 flex-wrap" id="avatarColorPickerContainer">
+                    <!-- Populated dynamically -->
+                  </div>
+                </div>
+
+                <button type="submit" class="btn btn-splitzy-primary w-100 py-2 fw-bold">
+                  <i class="fa-solid fa-floppy-disk me-1"></i> Save Profile Details
+                </button>
+              </form>
             </div>
 
-            <!-- In-App Backup & Restore -->
-            <hr class="my-3" style="border-color: var(--card-border);">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <small class="text-muted fw-bold">Data Persistence & Backup:</small>
-            </div>
-            <div class="d-flex gap-2">
-              <button type="button" class="btn btn-sm btn-splitzy-secondary flex-grow-1" onclick="App.exportBackupJSON()">
-                <i class="fa-solid fa-download me-1"></i> Backup JSON
-              </button>
-              <button type="button" class="btn btn-sm btn-splitzy-secondary flex-grow-1" onclick="document.getElementById('importBackupFile').click()">
-                <i class="fa-solid fa-upload me-1"></i> Restore
-              </button>
-              <input type="file" id="importBackupFile" class="d-none" accept=".json" onchange="App.importBackupJSON(event)">
+            <!-- 2. Security & JWT Tab -->
+            <div class="tab-pane fade" id="tab-security-pane" role="tabpanel">
+              <!-- Change Password Form -->
+              <form onsubmit="event.preventDefault(); App.handleChangePassword();" class="mb-4">
+                <h6 class="fw-bold text-main mb-2"><i class="fa-solid fa-lock text-warning me-1"></i> Change Password</h6>
+                <div class="mb-2">
+                  <label class="form-label small fw-bold text-muted mb-1">Current Password</label>
+                  <input type="password" class="form-control form-control-sm" id="currPasswordInput" required>
+                </div>
+                <div class="mb-2">
+                  <label class="form-label small fw-bold text-muted mb-1">New Password (min 6 characters)</label>
+                  <input type="password" class="form-control form-control-sm" id="newPasswordInput" minlength="6" required>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label small fw-bold text-muted mb-1">Confirm New Password</label>
+                  <input type="password" class="form-control form-control-sm" id="confirmNewPasswordInput" minlength="6" required>
+                </div>
+                <button type="submit" class="btn btn-sm btn-outline-warning w-100 fw-bold py-2">
+                  <i class="fa-solid fa-key me-1"></i> Update Password
+                </button>
+              </form>
+
+              <!-- JWT Session Diagnostics Card -->
+              <div class="p-3 rounded-3" style="background: var(--bg-surface-elevated); border: 1px solid var(--card-border);">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <span class="small fw-bold text-main"><i class="fa-solid fa-id-badge text-primary me-1"></i> JWT Authentication Token</span>
+                  <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 small">
+                    <i class="fa-solid fa-circle-check me-1"></i>Active (HS256)
+                  </span>
+                </div>
+                <div class="small text-muted font-monospace mb-2 text-truncate" id="jwtTokenPreview" style="font-size: 0.72rem;">
+                  <!-- Token string -->
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                  <small class="text-muted" id="jwtExpiryText" style="font-size: 0.75rem;">Expires in 7 days</small>
+                  <button type="button" class="btn btn-sm btn-link text-decoration-none p-0" onclick="App.copyJwtToken()">
+                    <i class="fa-solid fa-copy me-1"></i> Copy Token
+                  </button>
+                </div>
+              </div>
             </div>
 
-            <button type="submit" class="btn btn-splitzy-primary w-100 mt-3 py-2 fw-bold">
-              Save Changes
-            </button>
-          </form>
+            <!-- 3. Backup & Data Tab -->
+            <div class="tab-pane fade" id="tab-data-pane" role="tabpanel">
+              <div class="p-3 rounded-3 mb-3" style="background: var(--bg-surface-elevated); border: 1px solid var(--card-border);">
+                <h6 class="fw-bold text-main mb-1"><i class="fa-solid fa-download text-primary me-1"></i> Export Local Data</h6>
+                <p class="small text-muted mb-2">Download a complete JSON backup of all your groups, expenses, settlements, and member UPI IDs.</p>
+                <button type="button" class="btn btn-sm btn-splitzy-secondary w-100 fw-bold" onclick="App.exportBackupJSON()">
+                  <i class="fa-solid fa-file-export me-1"></i> Download JSON Backup
+                </button>
+              </div>
+
+              <div class="p-3 rounded-3" style="background: var(--bg-surface-elevated); border: 1px solid var(--card-border);">
+                <h6 class="fw-bold text-main mb-1"><i class="fa-solid fa-upload text-success me-1"></i> Restore from Backup</h6>
+                <p class="small text-muted mb-2">Restore your previous Splitzy workspace from a downloaded JSON file.</p>
+                <button type="button" class="btn btn-sm btn-outline-success w-100 fw-bold" onclick="document.getElementById('importBackupFile').click()">
+                  <i class="fa-solid fa-file-import me-1"></i> Restore JSON File
+                </button>
+                <input type="file" id="importBackupFile" class="d-none" accept=".json" onchange="App.importBackupJSON(event)">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer border-top d-flex justify-content-between py-2">
+          <button type="button" class="btn btn-sm btn-outline-danger" onclick="App.logout()">
+            <i class="fa-solid fa-right-from-bracket me-1"></i> Sign Out
+          </button>
+          <button type="button" class="btn btn-sm btn-splitzy-secondary" data-bs-dismiss="modal">
+            Close
+          </button>
         </div>
       </div>
     </div>
@@ -999,6 +1195,7 @@
   <script src="js/firebase-config.js"></script>
   <script src="js/realtime.js"></script>
   <script src="js/storage.js"></script>
+  <script src="js/auth.js"></script>
   <script src="js/settlement.js"></script>
   <script src="js/groups.js"></script>
   <script src="js/expenses.js"></script>

@@ -25,8 +25,10 @@ Traditional bill splitters calculate pairwise debts, resulting in an unmanageabl
 The application features:
 * **Dynamic 4-Mode Split Engine**: Equal, Exact amounts, Percentage shares, and Itemized ("Who Ate What") splits.
 * **Persona Switcher ("Viewing As")**: Dynamic context re-calculation from any group member's perspective.
-* **Instant UPI Payments**: Integrated NPCI-compliant Unified Payments Interface (UPI) deep-links and dynamic QR code generation.
+* **JWT Authentication & Account Security**: Secure password hashing with Web Crypto SHA-256 and salted HS256 Signed JSON Web Tokens (JWT) for active session verification.
+* **Unified Profile & Account Center**: Clean profile customization (avatar initials & colors), UPI ID registry, password changes, and diagnostics.
 * **Real-Time Cloud Sync**: Integrated Firebase Firestore real-time synchronization with active `onSnapshot` listeners for cross-device live collaboration.
+* **Instant UPI Payments**: Integrated NPCI-compliant Unified Payments Interface (UPI) deep-links and dynamic QR code generation.
 * **Interactive Visual Analytics**: Category spending distributions and member contribution charts using Chart.js.
 * **Export & Sharing Hub**: Instant WhatsApp summaries, downloadable CSV logs, and printable invoices.
 * **Offline-First PWA**: Offline capability via Service Worker precaching and zero-latency browser `localStorage` persistence with graceful cloud fallback.
@@ -190,6 +192,7 @@ SPLITZY/
 └── js/
     ├── firebase-config.js  # Optional default Firebase Firestore configuration
     ├── realtime.js         # Firebase Firestore real-time synchronization engine
+    ├── auth.js             # JWT Authentication, SHA-256 password hashing & profile security
     ├── storage.js          # LocalStorage CRUD, seed data, UPI validation, event bus
     ├── settlement.js       # Min-Cash-Flow algorithm & UPI URI/QR generation logic
     ├── groups.js           # Group management, member chip renderers, invite link logic
