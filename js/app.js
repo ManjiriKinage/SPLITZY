@@ -14,10 +14,16 @@ class SplitzyApp {
   }
 
   init() {
-    // 1. Theme initialization
+    // 0. Theme initialization
     const savedTheme = storage.getTheme();
     document.documentElement.setAttribute('data-theme', savedTheme);
     this.updateThemeIcon(savedTheme);
+
+    // 1. Real-Time Cloud Sync Initialization
+    if (typeof realtimeSync !== 'undefined') {
+      realtimeSync.init();
+      this.updateCloudSyncStatusBadge(realtimeSync.status);
+    }
 
     // 2. User Profile Setup / Onboarding Check
     this.checkUserProfileOnboarding();
@@ -117,7 +123,7 @@ class SplitzyApp {
   }
 
   // --- URL Join Deep Links & Cross-Device Portable Sync ---
-  handleUrlJoinParameters() {
+  async handleUrlJoinParameters() {
     let joinCode = null;
     let payloadData = null;
 
@@ -155,16 +161,28 @@ class SplitzyApp {
       }
     }
 
-    // 4. If only join code was provided
+    // 4. If join code was provided
     if (joinCode) {
-      const group = storage.getGroupById(joinCode);
+      let group = storage.getGroupById(joinCode);
+      
+      // If not present in local storage, query Cloud Firestore in real time
+      if (!group && typeof realtimeSync !== 'undefined' && realtimeSync.isConfigured()) {
+        this.showToast(`Fetching group "${joinCode}" from Cloud... ⚡`, 'info');
+        const remoteResult = await realtimeSync.fetchGroupByCode(joinCode);
+        if (remoteResult && remoteResult.group) {
+          group = remoteResult.group;
+        }
+      }
+
       if (group) {
         const currentUserName = storage.getUserName();
         storage.addMemberToGroup(group.id, currentUserName);
+        const cleanUrl = window.location.pathname + '?group=' + encodeURIComponent(group.id);
+        window.history.replaceState({}, document.title, cleanUrl);
         this.openGroupDetail(group.id);
         this.showToast(`Joined group: ${group.name}! 🚀`, 'success');
       } else {
-        this.showToast(`Group code "${joinCode}" not found on this device. Paste the full Invite Link to sync!`, 'warning');
+        this.showToast(`Group code "${joinCode}" not found. Paste the invite link to sync!`, 'warning');
         this.openJoinGroupModal(joinCode);
       }
     }
@@ -174,6 +192,11 @@ class SplitzyApp {
     // Storage data updates
     window.addEventListener('splitzy:data-updated', () => {
       this.renderActiveView();
+    });
+
+    // Realtime Cloud Sync status listener
+    window.addEventListener('splitzy:sync-status', (e) => {
+      this.updateCloudSyncStatusBadge(e.detail.status);
     });
 
     window.addEventListener('splitzy:user-updated', (e) => {
@@ -458,6 +481,9 @@ class SplitzyApp {
 
   // --- 2. Group Detail View ---
   openGroupDetail(groupId) {
+    if (typeof realtimeSync !== 'undefined' && realtimeSync.isConfigured()) {
+      realtimeSync.listenToGroup(groupId);
+    }
     this.navigate('group', groupId);
   }
 
@@ -953,7 +979,7 @@ class SplitzyApp {
     }
   }
 
-  joinGroupByCode() {
+  async joinGroupByCode() {
     const input = document.getElementById('joinGroupCodeInput');
     const rawVal = (input?.value || '').trim();
     if (!rawVal) {
@@ -995,9 +1021,19 @@ class SplitzyApp {
     }
 
     // Try finding by local code
-    const group = storage.getGroupById(code);
+    let group = storage.getGroupById(code);
+
+    // If not in local storage, query Cloud Firestore in real time
+    if (!group && typeof realtimeSync !== 'undefined' && realtimeSync.isConfigured()) {
+      this.showToast(`Searching Cloud for "${code}"... ⚡`, 'info');
+      const remoteResult = await realtimeSync.fetchGroupByCode(code);
+      if (remoteResult && remoteResult.group) {
+        group = remoteResult.group;
+      }
+    }
+
     if (!group) {
-      this.showToast(`Group "${code}" was not found on this device. Paste the full Invite Link to sync it!`, 'danger');
+      this.showToast(`Group "${code}" was not found. Paste the full Invite Link to sync it!`, 'danger');
       return;
     }
 
@@ -1256,6 +1292,172 @@ class SplitzyApp {
       toastEl.classList.remove('show');
       setTimeout(() => toastEl.remove(), 250);
     }, 3500);
+  }
+
+  // --- Real-Time Cloud Sync UI Controls ---
+  updateCloudSyncStatusBadge(status) {
+    const dot = document.getElementById('syncStatusDot');
+    const label = document.getElementById('syncStatusLabel');
+    const btn = document.getElementById('cloudSyncStatusBtn');
+    const modalBadge = document.getElementById('cloudModalStatusBadge');
+    const modalDesc = document.getElementById('cloudModalStatusDesc');
+
+    if (status === 'connected') {
+      if (dot) dot.className = 'sync-dot bg-success';
+      if (label) label.textContent = 'Cloud Live ⚡';
+      if (btn) {
+        btn.className = 'btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1 rounded-pill px-2 py-1';
+        btn.title = 'Cloud Live: Connected to Firestore in real-time';
+      }
+      if (modalBadge) {
+        modalBadge.className = 'badge bg-success';
+        modalBadge.textContent = 'Connected (Live ⚡)';
+      }
+      if (modalDesc) {
+        modalDesc.textContent = 'Real-time synchronization is active! Any changes made here are instantly pushed to all members.';
+      }
+    } else if (status === 'connecting') {
+      if (dot) dot.className = 'sync-dot bg-warning';
+      if (label) label.textContent = 'Connecting...';
+      if (modalBadge) {
+        modalBadge.className = 'badge bg-warning text-dark';
+        modalBadge.textContent = 'Connecting...';
+      }
+    } else if (status === 'error') {
+      if (dot) dot.className = 'sync-dot bg-danger';
+      if (label) label.textContent = 'Sync Error';
+      if (btn) btn.className = 'btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 rounded-pill px-2 py-1';
+      if (modalBadge) {
+        modalBadge.className = 'badge bg-danger';
+        modalBadge.textContent = 'Connection Failed';
+      }
+    } else {
+      // unconfigured / local mode
+      if (dot) dot.className = 'sync-dot bg-secondary';
+      if (label) label.textContent = 'Local Mode';
+      if (btn) {
+        btn.className = 'btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 rounded-pill px-2 py-1';
+        btn.title = 'Running locally. Click to connect Free Cloud Sync';
+      }
+      if (modalBadge) {
+        modalBadge.className = 'badge bg-secondary';
+        modalBadge.textContent = 'Local Storage Only';
+      }
+      if (modalDesc) {
+        modalDesc.textContent = 'Currently running in offline LocalStorage mode. Connect your Firebase credentials to enable real-time cross-device sync.';
+      }
+    }
+  }
+
+  openCloudSettingsModal() {
+    const config = typeof realtimeSync !== 'undefined' ? realtimeSync.getConfig() : null;
+    document.getElementById('fbProjectId').value = config?.projectId || '';
+    document.getElementById('fbApiKey').value = config?.apiKey || '';
+    document.getElementById('fbAuthDomain').value = config?.authDomain || '';
+    document.getElementById('fbStorageBucket').value = config?.storageBucket || '';
+    document.getElementById('fbMessagingSenderId').value = config?.messagingSenderId || '';
+    document.getElementById('fbAppId').value = config?.appId || '';
+
+    this.updateCloudSyncStatusBadge(realtimeSync?.status || 'unconfigured');
+
+    const modalEl = document.getElementById('cloudSettingsModal');
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+  }
+
+  saveCloudSettings() {
+    const projectId = document.getElementById('fbProjectId').value.trim();
+    const apiKey = document.getElementById('fbApiKey').value.trim();
+    const authDomain = document.getElementById('fbAuthDomain').value.trim();
+    const storageBucket = document.getElementById('fbStorageBucket').value.trim();
+    const messagingSenderId = document.getElementById('fbMessagingSenderId').value.trim();
+    const appId = document.getElementById('fbAppId').value.trim();
+
+    if (!projectId || !apiKey) {
+      this.showToast('Please enter both Project ID and API Key', 'warning');
+      return;
+    }
+
+    const config = {
+      apiKey,
+      authDomain: authDomain || `${projectId}.firebaseapp.com`,
+      projectId,
+      storageBucket: storageBucket || `${projectId}.appspot.com`,
+      messagingSenderId,
+      appId
+    };
+
+    if (typeof realtimeSync !== 'undefined') {
+      const saved = realtimeSync.saveConfig(config);
+      if (saved) {
+        this.showToast('Firebase Config saved! Connecting to Firestore... ⚡', 'success');
+        setTimeout(() => {
+          this.updateCloudSyncStatusBadge(realtimeSync.status);
+          if (realtimeSync.isConfigured()) {
+            this.showToast('Connected to Cloud Firestore in Real-Time!', 'success');
+          }
+        }, 1200);
+      }
+    }
+  }
+
+  async syncLocalDataToCloudNow() {
+    if (typeof realtimeSync === 'undefined' || !realtimeSync.isConfigured()) {
+      this.showToast('Please connect and save Firebase credentials first!', 'warning');
+      return;
+    }
+    this.showToast('Uploading all local groups and expenses to Cloud... ☁️', 'info');
+    const result = await realtimeSync.syncAllLocalToCloud();
+    if (result.success) {
+      this.showToast(result.message, 'success');
+    } else {
+      this.showToast(result.message, 'danger');
+    }
+  }
+
+  disconnectCloud() {
+    if (confirm('Disconnect from Cloud Sync? Data in your local storage will not be deleted.')) {
+      if (typeof realtimeSync !== 'undefined') {
+        realtimeSync.removeConfig();
+      }
+      document.getElementById('fbProjectId').value = '';
+      document.getElementById('fbApiKey').value = '';
+      document.getElementById('fbAuthDomain').value = '';
+      document.getElementById('fbStorageBucket').value = '';
+      document.getElementById('fbMessagingSenderId').value = '';
+      document.getElementById('fbAppId').value = '';
+      this.showToast('Disconnected from Cloud. Now running in Local Mode.', 'info');
+    }
+  }
+
+  parseFirebaseSnippet(snippet) {
+    if (!snippet || snippet.length < 20) return;
+    try {
+      const getVal = (key) => {
+        const regex = new RegExp(`${key}\\s*:\\s*["']([^"']+)["']`, 'i');
+        const m = snippet.match(regex);
+        return m ? m[1] : '';
+      };
+
+      const apiKey = getVal('apiKey');
+      const projectId = getVal('projectId');
+      const authDomain = getVal('authDomain');
+      const storageBucket = getVal('storageBucket');
+      const messagingSenderId = getVal('messagingSenderId');
+      const appId = getVal('appId');
+
+      if (apiKey) document.getElementById('fbApiKey').value = apiKey;
+      if (projectId) document.getElementById('fbProjectId').value = projectId;
+      if (authDomain) document.getElementById('fbAuthDomain').value = authDomain;
+      if (storageBucket) document.getElementById('fbStorageBucket').value = storageBucket;
+      if (messagingSenderId) document.getElementById('fbMessagingSenderId').value = messagingSenderId;
+      if (appId) document.getElementById('fbAppId').value = appId;
+
+      if (apiKey && projectId) {
+        this.showToast('Extracted credentials from snippet! ✨', 'info');
+      }
+    } catch (e) {
+      console.warn('[Splitzy] Could not parse snippet:', e);
+    }
   }
 
   triggerConfetti() {

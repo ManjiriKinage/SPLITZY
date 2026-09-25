@@ -222,6 +222,9 @@ class StorageManager {
 
     localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(groups));
     window.dispatchEvent(new CustomEvent('splitzy:data-updated'));
+    if (typeof realtimeSync !== 'undefined' && realtimeSync.isConfigured()) {
+      realtimeSync.syncGroup(groupData);
+    }
     return groupData;
   }
 
@@ -235,8 +238,12 @@ class StorageManager {
 
     if (!group.members.includes(trimmed)) {
       group.members.push(trimmed);
+      group.updatedAt = new Date().toISOString();
       localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(groups));
       window.dispatchEvent(new CustomEvent('splitzy:data-updated'));
+      if (typeof realtimeSync !== 'undefined' && realtimeSync.isConfigured()) {
+        realtimeSync.syncGroup(group);
+      }
     }
     return true;
   }
@@ -253,6 +260,9 @@ class StorageManager {
     localStorage.setItem(STORAGE_KEYS.SETTLEMENTS, JSON.stringify(settlements));
 
     window.dispatchEvent(new CustomEvent('splitzy:data-updated'));
+    if (typeof realtimeSync !== 'undefined' && realtimeSync.isConfigured()) {
+      realtimeSync.deleteGroup(groupId);
+    }
   }
 
   // --- Expenses Management ---
@@ -278,14 +288,19 @@ class StorageManager {
       const idx = expenses.findIndex(e => e.id === expenseData.id);
       if (idx !== -1) {
         expenses[idx] = { ...expenses[idx], ...expenseData, updatedAt: new Date().toISOString() };
+        expenseData = expenses[idx];
       }
     } else {
       expenseData.id = 'exp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
       expenseData.createdAt = new Date().toISOString();
+      expenseData.updatedAt = expenseData.createdAt;
       expenses.unshift(expenseData);
     }
     localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(expenses));
     window.dispatchEvent(new CustomEvent('splitzy:data-updated'));
+    if (typeof realtimeSync !== 'undefined' && realtimeSync.isConfigured()) {
+      realtimeSync.syncExpense(expenseData);
+    }
     return expenseData;
   }
 
@@ -293,6 +308,9 @@ class StorageManager {
     let expenses = this.getExpenses().filter(e => e.id !== expenseId);
     localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(expenses));
     window.dispatchEvent(new CustomEvent('splitzy:data-updated'));
+    if (typeof realtimeSync !== 'undefined' && realtimeSync.isConfigured()) {
+      realtimeSync.deleteExpense(expenseId);
+    }
   }
 
   // --- Settlements (Direct Payments) ---
@@ -312,9 +330,13 @@ class StorageManager {
     const settlements = this.getSettlements();
     settlementData.id = 'set_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
     settlementData.createdAt = new Date().toISOString();
+    settlementData.updatedAt = settlementData.createdAt;
     settlements.unshift(settlementData);
     localStorage.setItem(STORAGE_KEYS.SETTLEMENTS, JSON.stringify(settlements));
     window.dispatchEvent(new CustomEvent('splitzy:data-updated'));
+    if (typeof realtimeSync !== 'undefined' && realtimeSync.isConfigured()) {
+      realtimeSync.syncSettlement(settlementData);
+    }
     return settlementData;
   }
 

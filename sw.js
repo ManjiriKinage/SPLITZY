@@ -2,12 +2,14 @@
  * SPLITZY 2.0 — Service Worker for Offline PWA Support
  */
 
-const CACHE_NAME = 'splitzy-cache-v2.2';
+const CACHE_NAME = 'splitzy-cache-v2.3';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
   './css/style.css',
+  './js/firebase-config.js',
+  './js/realtime.js',
   './js/storage.js',
   './js/settlement.js',
   './js/groups.js',
@@ -23,7 +25,9 @@ const ASSETS_TO_CACHE = [
   'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'
+  'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js',
+  'https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js',
+  'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js'
 ];
 
 // Install Event — pre-cache core shell

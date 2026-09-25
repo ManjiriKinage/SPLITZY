@@ -35,8 +35,10 @@ When friends travel together, flatmates share monthly bills, or colleagues split
   * **WhatsApp Formatted Summary**: Generates clean, formatted text with emojis for group chats.
   * **CSV Spreadsheet Export**: Download complete expense logs.
   * **Print-Ready Invoices**: Formatted CSS print layouts.
-* **Persistence & Backup**:
-  * 100% client-side persistence in `localStorage`.
+* **Persistence & Real-Time Cloud Sync**:
+  * **Real-Time Multi-Device Cloud Sync**: Integrated Firebase Firestore engine allowing simultaneous cross-device live updates without page reload.
+  * **Offline-First Resilience**: 100% functional offline with browser `localStorage` and PWA service worker precaching.
+  * **One-Click Cloud Migration**: Seamlessly upload existing local groups and expenses to Firestore.
   * One-click JSON backup export and restore.
   * "Reset to Viva Demo Data" option.
 * **Aesthetics & Theme**:
