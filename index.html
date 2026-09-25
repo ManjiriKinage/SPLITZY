@@ -67,11 +67,11 @@
           </ul>
         </div>
 
-        <!-- Real-Time Cloud Sync Button / Badge -->
-        <button class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 rounded-pill px-2 py-1" id="cloudSyncStatusBtn" onclick="App.openCloudSettingsModal()" title="Real-time Cloud Sync Settings">
-          <span class="sync-dot bg-secondary" id="syncStatusDot" style="width:8px; height:8px; border-radius:50%; display:inline-block;"></span>
-          <span class="d-none d-sm-inline small fw-semibold" id="syncStatusLabel">Cloud Sync</span>
-        </button>
+        <!-- Real-Time Cloud Status Indicator (Automatic & Zero-Config for users) -->
+        <div class="d-inline-flex align-items-center gap-1 px-2 py-1 rounded-pill border bg-body-secondary small fw-semibold text-main" id="cloudSyncStatusBtn" title="Real-time Cloud Sync is Active">
+          <span class="sync-dot bg-success" id="syncStatusDot" style="width:8px; height:8px; border-radius:50%; display:inline-block;"></span>
+          <span class="d-none d-sm-inline small" id="syncStatusLabel" style="font-size: 0.78rem;">Cloud Live ⚡</span>
+        </div>
 
         <!-- Join by Code Button -->
         <button class="btn btn-splitzy-secondary d-none d-sm-inline-flex" onclick="App.openJoinGroupModal()" title="Enter Group Code to Join">
@@ -1070,106 +1070,7 @@
     </div>
   </div>
 
-  <!-- Cloud Sync & Firebase Configuration Modal -->
-  <div class="modal fade" id="cloudSettingsModal" tabindex="-1" aria-labelledby="cloudSettingsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header border-0 pb-0">
-          <h5 class="modal-title fw-bold" id="cloudSettingsModalLabel">
-            <i class="fa-solid fa-cloud-bolt text-primary me-2"></i>Real-Time Cloud Sync
-          </h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <div class="p-3 rounded-3 mb-3" style="background: var(--bg-surface-elevated); border: 1px solid var(--card-border);">
-            <div class="d-flex align-items-center justify-content-between mb-2">
-              <span class="fw-bold small text-muted">STATUS:</span>
-              <span class="badge" id="cloudModalStatusBadge">Checking...</span>
-            </div>
-            <p class="small text-muted mb-0" id="cloudModalStatusDesc">
-              Connect a free Firebase Firestore database to sync expenses, payments, and groups across all member devices in real-time.
-            </p>
-          </div>
 
-          <!-- Firebase Config Form -->
-          <form id="cloudConfigForm" onsubmit="event.preventDefault(); App.saveCloudSettings();">
-            <div class="mb-2">
-              <label class="form-label small fw-bold mb-1">Project ID <span class="text-danger">*</span></label>
-              <input type="text" class="form-control form-control-sm font-monospace" id="fbProjectId" placeholder="e.g. splitzy-app-12345" required>
-            </div>
-            <div class="mb-2">
-              <label class="form-label small fw-bold mb-1">API Key <span class="text-danger">*</span></label>
-              <input type="text" class="form-control form-control-sm font-monospace" id="fbApiKey" placeholder="AIzaSy..." required>
-            </div>
-            <div class="row g-2 mb-2">
-              <div class="col-6">
-                <label class="form-label small fw-bold mb-1">Auth Domain</label>
-                <input type="text" class="form-control form-control-sm font-monospace" id="fbAuthDomain" placeholder="splitzy-app.firebaseapp.com">
-              </div>
-              <div class="col-6">
-                <label class="form-label small fw-bold mb-1">Storage Bucket</label>
-                <input type="text" class="form-control form-control-sm font-monospace" id="fbStorageBucket" placeholder="splitzy-app.appspot.com">
-              </div>
-            </div>
-            <div class="row g-2 mb-3">
-              <div class="col-6">
-                <label class="form-label small fw-bold mb-1">Messaging Sender ID</label>
-                <input type="text" class="form-control form-control-sm font-monospace" id="fbMessagingSenderId" placeholder="1234567890">
-              </div>
-              <div class="col-6">
-                <label class="form-label small fw-bold mb-1">App ID</label>
-                <input type="text" class="form-control form-control-sm font-monospace" id="fbAppId" placeholder="1:123456:web:abcd...">
-              </div>
-            </div>
-
-            <!-- Quick Paste Firebase Snippet Collapse -->
-            <div class="mb-3">
-              <a class="small text-primary text-decoration-none fw-semibold d-inline-flex align-items-center gap-1" data-bs-toggle="collapse" href="#pasteConfigCollapse" role="button">
-                <i class="fa-solid fa-code"></i>
-                <span>Paste Firebase JS Configuration Object / Snippet</span>
-              </a>
-              <div class="collapse mt-2" id="pasteConfigCollapse">
-                <textarea class="form-control form-control-sm font-monospace" id="fbSnippetInput" rows="3" placeholder="const firebaseConfig = { apiKey: '...', projectId: '...' };" oninput="App.parseFirebaseSnippet(this.value)"></textarea>
-                <small class="text-muted" style="font-size:0.72rem;">Paste directly from Firebase Console &gt; Project Settings &gt; Web App snippet.</small>
-              </div>
-            </div>
-
-            <!-- 2-Minute Step-by-Step Setup Guide Accordion -->
-            <div class="accordion mb-3" id="firebaseGuideAccordion">
-              <div class="accordion-item" style="border-color: var(--card-border);">
-                <h2 class="accordion-header">
-                  <button class="accordion-button collapsed py-2 small fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#fbGuideBody">
-                    <i class="fa-solid fa-circle-question text-info me-2"></i> Free 2-Minute Setup Guide (Firebase)
-                  </button>
-                </h2>
-                <div id="fbGuideBody" class="accordion-collapse collapse" data-bs-parent="#firebaseGuideAccordion">
-                  <div class="accordion-body small text-muted p-2" style="font-size:0.78rem;">
-                    <ol class="ps-3 mb-0">
-                      <li>Go to <a href="https://console.firebase.google.com/" target="_blank" class="fw-bold text-primary">console.firebase.google.com</a> &gt; Click <strong>Create a project</strong> (100% Free).</li>
-                      <li>Go to <strong>Build &gt; Firestore Database</strong> &gt; Click <strong>Create database</strong> &gt; Start in <strong>Test mode</strong>.</li>
-                      <li>Go to <strong>Project Settings</strong> (gear icon) &gt; In <em>Your apps</em>, add <strong>Web (&lt;/&gt;)</strong> &gt; Copy config values and paste above.</li>
-                    </ol>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="d-flex flex-wrap gap-2">
-              <button type="submit" class="btn btn-splitzy-primary flex-grow-1">
-                <i class="fa-solid fa-plug me-1"></i> Connect & Save
-              </button>
-              <button type="button" class="btn btn-outline-success flex-grow-1" id="btnSyncLocalToCloud" onclick="App.syncLocalDataToCloudNow()">
-                <i class="fa-solid fa-cloud-arrow-up me-1"></i> Sync Local Data
-              </button>
-              <button type="button" class="btn btn-outline-danger" id="btnDisconnectCloud" onclick="App.disconnectCloud()" title="Disconnect Cloud Sync">
-                <i class="fa-solid fa-power-off"></i>
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  </div>
 
   <!-- Toast Notification Container -->
   <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer"></div>

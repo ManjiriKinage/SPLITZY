@@ -260,6 +260,17 @@ class RealtimeSyncEngine {
           let groupExpenses = [];
           let otherExpenses = allExpenses.filter(e => e.groupId !== groupId);
 
+          const currentUserName = storage.getUserName();
+
+          snapshot.docChanges().forEach(change => {
+            if (change.type === 'added' && !snapshot.metadata.hasPendingWrites) {
+              const exp = change.doc.data();
+              if (exp && exp.paidBy && exp.paidBy !== currentUserName && typeof App !== 'undefined' && App.showToast) {
+                App.showToast(`⚡ ${exp.paidBy} added "${exp.title}" (₹${exp.amount})`, 'info');
+              }
+            }
+          });
+
           snapshot.forEach(doc => {
             const exp = doc.data();
             if (exp && exp.id) groupExpenses.push(exp);
@@ -285,6 +296,17 @@ class RealtimeSyncEngine {
           let allSettlements = storage.getSettlements();
           let groupSettlements = [];
           let otherSettlements = allSettlements.filter(s => s.groupId !== groupId);
+
+          const currentUserName = storage.getUserName();
+
+          snapshot.docChanges().forEach(change => {
+            if (change.type === 'added' && !snapshot.metadata.hasPendingWrites) {
+              const set = change.doc.data();
+              if (set && set.from && set.from !== currentUserName && typeof App !== 'undefined' && App.showToast) {
+                App.showToast(`💸 Payment recorded: ${set.from} paid ₹${set.amount} to ${set.to}`, 'success');
+              }
+            }
+          });
 
           snapshot.forEach(doc => {
             const set = doc.data();
