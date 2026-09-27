@@ -1,15 +1,15 @@
 /**
- * SPLITZY 2.0 — Service Worker for Offline PWA Support
+ * SPLITZY 2.0 — Service Worker for Offline PWA Support (Supabase Edition)
  */
 
-const CACHE_NAME = 'splitzy-cache-v2.4';
+const CACHE_NAME = 'splitzy-cache-v3.0';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
   './css/style.css',
-  './js/firebase-config.js',
-  './js/realtime.js',
+  './js/supabase-config.js',
+  './js/supabase.js',
   './js/storage.js',
   './js/auth.js',
   './js/settlement.js',
@@ -22,13 +22,12 @@ const ASSETS_TO_CACHE = [
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css',
-  'https://cdn.jsdelivr.net/npm/chart.js',
+  'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js',
   'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js',
-  'https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js',
-  'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js'
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'
 ];
 
 // Install Event — pre-cache core shell

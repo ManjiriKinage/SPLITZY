@@ -166,12 +166,12 @@ $$\sum_{i=1}^{N} \text{Net}(i) = 0 \quad (\text{Conservation of Money})$$
 | :--- | :--- | :--- |
 | **Structure** | **HTML5** | Semantic layout, tab routing containers, accessible modal dialogs |
 | **Styling & Theme** | **CSS3 + Bootstrap 5** | Design tokens, Glassmorphism, CSS variables, Dark/Light modes, Responsive grid |
-| **Logic & Algorithms**| **JavaScript (ES6+)** | Object-Oriented modular architecture, Min-Cash-Flow engine, DOM events |
-| **Real-Time Cloud** | **Firebase Firestore** | Multi-device live synchronization, real-time snapshot streams, cloud queries |
+| **Real-Time Backend** | **Supabase (PostgreSQL)** | Real-time WebSocket subscriptions (CDC), Row Level Security (RLS), Cloud DB |
+| **Authentication** | **Supabase Auth** | Secure email/password authentication barrier and session management |
 | **Visualizations** | **Chart.js (v4.x)** | High-contrast category doughnut & member contribution bar charts |
 | **QR Code Engine** | **QRious.js** | Client-side dynamic vector-to-canvas UPI QR code rendering |
 | **Celebrations** | **Canvas-Confetti** | Lightweight canvas particle animation on debt settlements |
-| **Persistence** | **LocalStorage API** | Structured JSON storage, data schema migrations, backup import/export |
+| **Persistence & Cache**| **In-Memory + Local Cache** | Reactive cache, data serialization, backup import/export |
 | **PWA & Offline** | **Service Worker** | Cache-first asset caching, offline capability, standalone web manifest |
 
 ---
@@ -181,25 +181,26 @@ $$\sum_{i=1}^{N} \text{Net}(i) = 0 \quad (\text{Conservation of Money})$$
 ```text
 SPLITZY/
 ├── index.html              # Main Single Page Application shell, navigation & modals
+├── supabase-schema.sql     # PostgreSQL tables, RLS policies & Realtime configuration
 ├── manifest.json           # PWA metadata, color theme, and icon definitions
 ├── sw.js                   # Service Worker script managing asset caching & offline mode
-├── README.md               # Project overview & brief summary
-├── PROJECT_DOCUMENTATION.md# Exhaustive documentation & teacher presentation guide
+├── README.md               # Project overview & quick setup guide
+├── PROJECT_DOCUMENTATION.md# Exhaustive documentation & presentation guide
 ├── assets/
 │   └── favicon.svg         # Splitzy branding vector SVG logo
 ├── css/
 │   └── style.css           # Glassmorphism effects, design tokens, light/dark themes
 └── js/
-    ├── firebase-config.js  # Optional default Firebase Firestore configuration
-    ├── realtime.js         # Firebase Firestore real-time synchronization engine
-    ├── auth.js             # JWT Authentication, SHA-256 password hashing & profile security
-    ├── storage.js          # LocalStorage CRUD, seed data, UPI validation, event bus
+    ├── supabase-config.js  # Supabase project URL & public anon key
+    ├── supabase.js         # Supabase client, Auth, and Realtime WebSocket Engine
+    ├── auth.js             # Supabase Authentication gatekeeper & session manager
+    ├── storage.js          # In-memory reactive data manager & cache
     ├── settlement.js       # Min-Cash-Flow algorithm & UPI URI/QR generation logic
     ├── groups.js           # Group management, member chip renderers, invite link logic
     ├── expenses.js         # Split logic (Equal, Exact, %, Itemized) & expense renderers
     ├── analytics.js        # Chart.js instances and group financial KPI cards
-    ├── export.js           # CSV file download, WhatsApp text formatter, print styles
-    └── app.js              # Application controller, modal bindings, view routing
+    ├── export.js           # CSV export, WhatsApp formatter, HTML2PDF generator
+    └── app.js              # Central UI controller, routing & event handlers
 ```
 
 ---

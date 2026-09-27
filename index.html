@@ -56,21 +56,21 @@
               <div class="fw-bold text-main text-truncate" id="dropdownUserFullName">You</div>
               <small class="text-muted d-block text-truncate" id="dropdownUserEmail">Signed in</small>
               <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-0 mt-1 small" style="font-size: 0.7rem;">
-                <i class="fa-solid fa-shield-halved me-1"></i>JWT Active
+                <i class="fa-solid fa-bolt me-1"></i>Supabase Auth
               </span>
             </li>
-            <li><a class="dropdown-item py-2 d-flex align-items-center gap-2" href="javascript:void(0)" onclick="App.openProfileModal('profile')"><i class="fa-solid fa-user text-primary"></i>Profile Details</a></li>
+            <li><a class="dropdown-item py-2 d-flex align-items-center gap-2" href="javascript:void(0)" onclick="App.navigate('profile')"><i class="fa-solid fa-user-gear text-primary"></i>Account & Profile Settings</a></li>
             <li><a class="dropdown-item py-2 d-flex align-items-center gap-2" href="javascript:void(0)" onclick="App.openProfileModal('security')"><i class="fa-solid fa-key text-warning"></i>Security & Password</a></li>
-            <li><a class="dropdown-item py-2 d-flex align-items-center gap-2" href="javascript:void(0)" onclick="App.openCloudSettingsModal()"><i class="fa-solid fa-cloud-bolt text-info"></i>Cloud Sync Settings</a></li>
+            <li><a class="dropdown-item py-2 d-flex align-items-center gap-2" href="javascript:void(0)" onclick="App.openProfileModal('data')"><i class="fa-solid fa-database text-info"></i>Database & Schema</a></li>
             <li><hr class="dropdown-divider my-1"></li>
             <li><a class="dropdown-item py-2 d-flex align-items-center gap-2 text-danger" href="javascript:void(0)" onclick="App.logout()"><i class="fa-solid fa-right-from-bracket"></i>Sign Out</a></li>
           </ul>
         </div>
 
-        <!-- Real-Time Cloud Status Indicator (Automatic & Zero-Config for users) -->
-        <div class="d-inline-flex align-items-center gap-1 px-2 py-1 rounded-pill border bg-body-secondary small fw-semibold text-main" id="cloudSyncStatusBtn" title="Real-time Cloud Sync is Active">
+        <!-- Real-Time Cloud Status Indicator -->
+        <div class="d-inline-flex align-items-center gap-1 px-2 py-1 rounded-pill border bg-body-secondary small fw-semibold text-main" id="cloudSyncStatusBtn" title="Real-time Supabase WebSockets are active">
           <span class="sync-dot bg-success" id="syncStatusDot" style="width:8px; height:8px; border-radius:50%; display:inline-block;"></span>
-          <span class="d-none d-sm-inline small" id="syncStatusLabel" style="font-size: 0.78rem;">Cloud Live ⚡</span>
+          <span class="d-none d-sm-inline small" id="syncStatusLabel" style="font-size: 0.78rem;">Supabase Live ⚡</span>
         </div>
 
         <!-- Join by Code Button -->
@@ -161,6 +161,9 @@
         </button>
         <button class="splitzy-nav-tab" data-view="activity">
           <i class="fa-solid fa-clock-rotate-left"></i> Activity Log
+        </button>
+        <button class="splitzy-nav-tab" data-view="profile">
+          <i class="fa-solid fa-user-gear"></i> Account Center
         </button>
       </div>
 
@@ -429,12 +432,294 @@
       </div>
     </section>
 
+    <!-- =========================================================================
+         VIEW 5: USER MANAGEMENT & ACCOUNT CENTER
+         ========================================================================= -->
+    <section id="view-profile" class="view-section d-none">
+      <div class="row justify-content-center">
+        <div class="col-12 col-lg-9">
+          <!-- Back to Dashboard -->
+          <button class="btn btn-sm btn-link text-muted text-decoration-none mb-3 p-0 fw-bold d-inline-flex align-items-center gap-1" onclick="App.navigate('dashboard')">
+            <i class="fa-solid fa-arrow-left"></i> Back to Dashboard
+          </button>
+
+          <div class="splitzy-card p-0 mb-4 overflow-hidden">
+            <!-- Profile Hero Header -->
+            <div class="user-management-profile-header p-4 d-flex align-items-center justify-content-between flex-wrap gap-3">
+              <div class="d-flex align-items-center gap-3">
+                <span class="avatar-chip" id="pageProfileAvatarChip" style="width: 58px; height: 58px; font-size: 1.5rem; background: var(--primary);">U</span>
+                <div>
+                  <h4 class="text-main fw-bold mb-1" id="pageProfileFullName">Your Name</h4>
+                  <p class="text-muted small mb-0 font-monospace" id="pageProfileEmail">email@example.com</p>
+                </div>
+              </div>
+              <div class="d-flex gap-2">
+                <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 fw-bold">
+                  <i class="fa-solid fa-circle-check me-1"></i>Supabase Auth Active
+                </span>
+                <button class="btn btn-sm btn-outline-danger fw-bold" onclick="App.logout()">
+                  <i class="fa-solid fa-right-from-bracket me-1"></i> Sign Out
+                </button>
+              </div>
+            </div>
+
+            <!-- Profile Management Forms -->
+            <div class="p-3 p-md-4">
+              <div class="row g-4">
+                <!-- Left: Profile Details & UPI ID -->
+                <div class="col-12 col-md-6">
+                  <div class="p-3 rounded-3 border h-100" style="background: var(--bg-surface-elevated); border-color: var(--card-border) !important;">
+                    <h5 class="text-main fw-bold mb-3"><i class="fa-solid fa-user-pen text-primary me-2"></i>Profile Details</h5>
+                    <form onsubmit="event.preventDefault(); App.savePageProfileInfo();">
+                      <div class="mb-3">
+                        <label class="form-label small fw-bold text-main">Full Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="pageProfileNameInput" required>
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label small fw-bold text-main">Email Address</label>
+                        <input type="email" class="form-control font-monospace" id="pageProfileEmailInput" readonly disabled>
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label small fw-bold text-main">Default UPI ID <small class="text-muted fw-normal">(for receiving group settlements)</small></label>
+                        <div class="input-group">
+                          <span class="input-group-text"><i class="fa-solid fa-wallet text-muted"></i></span>
+                          <input type="text" class="form-control font-monospace" id="pageProfileUpiInput" placeholder="e.g. name@okaxis">
+                        </div>
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label small fw-bold text-main">Avatar Color Theme</label>
+                        <div class="d-flex gap-2 flex-wrap" id="pageAvatarColorPickerContainer">
+                          <!-- Populated dynamically -->
+                        </div>
+                      </div>
+                      <button type="submit" class="btn btn-splitzy-primary w-100 fw-bold py-2">
+                        <i class="fa-solid fa-floppy-disk me-1"></i> Update Profile
+                      </button>
+                    </form>
+                  </div>
+                </div>
+
+                <!-- Right: Password & Security Center -->
+                <div class="col-12 col-md-6">
+                  <div class="p-3 rounded-3 border h-100" style="background: var(--bg-surface-elevated); border-color: var(--card-border) !important;">
+                    <h5 class="text-main fw-bold mb-3"><i class="fa-solid fa-shield-halved text-warning me-2"></i>Security & Password</h5>
+                    <form onsubmit="event.preventDefault(); App.handlePageChangePassword();" class="mb-3">
+                      <div class="mb-2">
+                        <label class="form-label small fw-bold text-muted">New Password (min 6 characters)</label>
+                        <input type="password" class="form-control form-control-sm" id="pageNewPasswordInput" minlength="6" placeholder="Enter new password" required>
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Confirm New Password</label>
+                        <input type="password" class="form-control form-control-sm" id="pageConfirmNewPasswordInput" minlength="6" placeholder="Re-enter new password" required>
+                      </div>
+                      <button type="submit" class="btn btn-sm btn-outline-warning w-100 fw-bold py-2">
+                        <i class="fa-solid fa-key me-1"></i> Update Password in Supabase
+                      </button>
+                    </form>
+
+                    <hr class="my-3" style="border-color: var(--card-border);">
+
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                      <span class="small fw-bold text-main"><i class="fa-solid fa-database text-info me-1"></i> Supabase Real-Time</span>
+                      <span class="badge bg-success-subtle text-success border border-success-subtle small">Connected ⚡</span>
+                    </div>
+                    <p class="small text-muted mb-2">All your groups and expenses are stored securely in PostgreSQL with live WebSockets replication.</p>
+                    <button type="button" class="btn btn-sm btn-splitzy-secondary w-100 fw-bold" onclick="App.exportBackupJSON()">
+                      <i class="fa-solid fa-download me-1"></i> Download JSON Workspace Backup
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         VIEW 6: DEDICATED REGISTRATION & LOGIN PAGE (When Not Authenticated)
+         ========================================================================= -->
+    <section id="view-auth" class="view-section d-none">
+      <div class="auth-page-wrapper">
+        <div class="container" style="max-width: 960px;">
+          <div class="auth-card-main">
+            <div class="row g-0">
+              <!-- Left Column: Splitzy Branding & Feature Showcase -->
+              <div class="col-12 col-lg-5 auth-hero-side p-4 p-md-5 d-flex flex-column justify-content-between">
+                <div>
+                  <div class="d-flex align-items-center gap-2 mb-4">
+                    <div class="brand-logo-icon" style="width: 42px; height: 42px; font-size: 1.25rem;">
+                      <i class="fa-solid fa-receipt"></i>
+                    </div>
+                    <span class="fs-3 fw-bold text-main">Splitzy</span>
+                  </div>
+
+                  <h3 class="fw-bold text-main mb-2">Group Expenses & UPI Settlements</h3>
+                  <p class="text-muted small mb-4">The easiest way to track shared trips, roommate bills, and dining expenses in real-time.</p>
+
+                  <div class="auth-feature-item">
+                    <div class="auth-feature-icon bg-primary-subtle text-primary">
+                      <i class="fa-solid fa-bolt"></i>
+                    </div>
+                    <div>
+                      <strong class="d-block text-main small">Real-Time Cloud Sync</strong>
+                      <span class="text-muted small" style="font-size: 0.78rem;">PostgreSQL WebSockets keep all group members live.</span>
+                    </div>
+                  </div>
+
+                  <div class="auth-feature-item">
+                    <div class="auth-feature-icon bg-success-subtle text-success">
+                      <i class="fa-solid fa-handshake-simple"></i>
+                    </div>
+                    <div>
+                      <strong class="d-block text-main small">Greedy Debt Simplification</strong>
+                      <span class="text-muted small" style="font-size: 0.78rem;">Reduces circular debts to at most N-1 transactions.</span>
+                    </div>
+                  </div>
+
+                  <div class="auth-feature-item">
+                    <div class="auth-feature-icon bg-warning-subtle text-warning">
+                      <i class="fa-solid fa-qrcode"></i>
+                    </div>
+                    <div>
+                      <strong class="d-block text-main small">Dynamic UPI QR Codes</strong>
+                      <span class="text-muted small" style="font-size: 0.78rem;">Instant 1-click mobile pay via GPay, PhonePe, and Paytm.</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="pt-3 border-top" style="border-color: var(--card-border) !important;">
+                  <small class="text-muted fw-semibold" style="font-size: 0.75rem;">
+                    <i class="fa-solid fa-shield-halved text-success me-1"></i> Powered by Supabase Auth & PostgreSQL
+                  </small>
+                </div>
+              </div>
+
+              <!-- Right Column: Registration & Login Tabs -->
+              <div class="col-12 col-lg-7 p-4 p-md-5">
+                <!-- Mode Switcher Nav Pills -->
+                <ul class="nav nav-pills w-100 p-1 bg-body-secondary rounded-3 mb-4" id="pageAuthNavTabs" role="tablist">
+                  <li class="nav-item flex-grow-1" role="presentation">
+                    <button class="nav-link auth-nav-pill active w-100" id="page-tab-signin-btn" data-bs-toggle="pill" data-bs-target="#page-tab-signin" type="button" role="tab">
+                      <i class="fa-solid fa-right-to-bracket me-1"></i> Sign In
+                    </button>
+                  </li>
+                  <li class="nav-item flex-grow-1" role="presentation">
+                    <button class="nav-link auth-nav-pill w-100" id="page-tab-signup-btn" data-bs-toggle="pill" data-bs-target="#page-tab-signup" type="button" role="tab">
+                      <i class="fa-solid fa-user-plus me-1"></i> Create Account
+                    </button>
+                  </li>
+                </ul>
+
+                <div class="tab-content" id="pageAuthTabContent">
+                  <!-- 1. Sign In Tab -->
+                  <div class="tab-pane fade show active" id="page-tab-signin" role="tabpanel">
+                    <h4 class="text-main fw-bold mb-1">Welcome back</h4>
+                    <p class="text-muted small mb-4">Enter your email and password to access your expense groups.</p>
+
+                    <form onsubmit="event.preventDefault(); App.handlePageSignIn();">
+                      <div class="mb-3">
+                        <label class="form-label small fw-bold text-main">Email Address</label>
+                        <div class="input-group">
+                          <span class="input-group-text"><i class="fa-solid fa-envelope text-muted"></i></span>
+                          <input type="email" class="form-control" id="pageLoginEmail" placeholder="name@example.com" required autofocus>
+                        </div>
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label small fw-bold text-main">Password</label>
+                        <div class="input-group">
+                          <span class="input-group-text"><i class="fa-solid fa-lock text-muted"></i></span>
+                          <input type="password" class="form-control" id="pageLoginPassword" placeholder="Enter your password" required>
+                          <button class="btn btn-outline-secondary" type="button" onclick="App.togglePasswordVisibility('pageLoginPassword', this)">
+                            <i class="fa-solid fa-eye"></i>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div class="d-flex align-items-center justify-content-between mb-4">
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" id="pageLoginRemember" checked>
+                          <label class="form-check-label small text-muted" for="pageLoginRemember">Keep me signed in</label>
+                        </div>
+                        <span class="badge bg-success-subtle text-success border border-success-subtle small font-monospace">
+                          <i class="fa-solid fa-lock me-1"></i>Supabase Session
+                        </span>
+                      </div>
+
+                      <button type="submit" class="btn btn-splitzy-primary w-100 py-2 fw-bold fs-6 mb-3" id="pageLoginSubmitBtn">
+                        <i class="fa-solid fa-arrow-right-to-bracket me-1"></i> Sign In to Splitzy
+                      </button>
+
+                      <div class="text-center">
+                        <span class="small text-muted">Don't have an account? </span>
+                        <a href="javascript:void(0)" class="small fw-bold text-primary text-decoration-none" onclick="document.getElementById('page-tab-signup-btn').click()">Create one here</a>
+                      </div>
+                    </form>
+                  </div>
+
+                  <!-- 2. Create Account / Register Tab -->
+                  <div class="tab-pane fade" id="page-tab-signup" role="tabpanel">
+                    <h4 class="text-main fw-bold mb-1">Create your account</h4>
+                    <p class="text-muted small mb-4">Join Splitzy to manage group trips, flatmate expenses, and debt settlements.</p>
+
+                    <form onsubmit="event.preventDefault(); App.handlePageSignUp();">
+                      <div class="mb-3">
+                        <label class="form-label small fw-bold text-main">Full Name <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                          <span class="input-group-text"><i class="fa-solid fa-user text-muted"></i></span>
+                          <input type="text" class="form-control" id="pageSignupName" placeholder="e.g. Manjiri Kinage" required>
+                        </div>
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label small fw-bold text-main">Email Address <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                          <span class="input-group-text"><i class="fa-solid fa-at text-muted"></i></span>
+                          <input type="email" class="form-control" id="pageSignupEmail" placeholder="name@example.com" required>
+                        </div>
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label small fw-bold text-main">Create Password <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                          <span class="input-group-text"><i class="fa-solid fa-lock text-muted"></i></span>
+                          <input type="password" class="form-control" id="pageSignupPassword" minlength="6" placeholder="Min. 6 characters" required>
+                          <button class="btn btn-outline-secondary" type="button" onclick="App.togglePasswordVisibility('pageSignupPassword', this)">
+                            <i class="fa-solid fa-eye"></i>
+                          </button>
+                        </div>
+                        <small class="text-muted" style="font-size: 0.75rem;">Must be at least 6 characters long.</small>
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label small fw-bold text-main">Default UPI ID <small class="text-muted fw-normal">(Optional, for receiving settlements)</small></label>
+                        <div class="input-group">
+                          <span class="input-group-text"><i class="fa-solid fa-wallet text-muted"></i></span>
+                          <input type="text" class="form-control font-monospace" id="pageSignupUpi" placeholder="e.g. name@okaxis">
+                        </div>
+                      </div>
+
+                      <button type="submit" class="btn btn-splitzy-success w-100 py-2 fw-bold fs-6 mb-3" id="pageSignupSubmitBtn">
+                        <i class="fa-solid fa-user-plus me-1"></i> Create Account & Get Started
+                      </button>
+
+                      <div class="text-center">
+                        <span class="small text-muted">Already registered? </span>
+                        <a href="javascript:void(0)" class="small fw-bold text-primary text-decoration-none" onclick="document.getElementById('page-tab-signin-btn').click()">Sign In here</a>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
   </main>
 
   <!-- =========================================================================
        BOTTOM NAVIGATION BAR (MOBILE ONLY)
        ========================================================================= -->
-  <nav class="mobile-bottom-nav d-md-none">
+  <nav class="mobile-bottom-nav d-md-none" id="mobileBottomNav">
     <button class="mobile-nav-item active" data-view="dashboard" onclick="App.navigate('dashboard')">
       <i class="fa-solid fa-grid-2"></i>
       <span>Groups</span>
@@ -452,9 +737,9 @@
       <i class="fa-solid fa-clock-rotate-left"></i>
       <span>Activity</span>
     </button>
-    <button class="mobile-nav-item" onclick="App.openProfileModal()">
+    <button class="mobile-nav-item" data-view="profile" onclick="App.navigate('profile')">
       <i class="fa-solid fa-circle-user"></i>
-      <span>Profile</span>
+      <span>Account</span>
     </button>
   </nav>
 
@@ -471,7 +756,7 @@
             <i class="fa-solid fa-receipt"></i>
           </div>
           <h4 class="modal-title fw-bold text-main" id="authModalLabel">Welcome to Splitzy</h4>
-          <p class="text-muted small mb-3" id="authModalSubtitle">Secure bill splitting with real-time sync & JWT auth</p>
+          <p class="text-muted small mb-3" id="authModalSubtitle">Real-time collaborative group expense & bill splitting</p>
 
           <!-- Auth Mode Nav Pills (Sign In vs Register) -->
           <ul class="nav nav-pills w-100 p-1 bg-body-secondary rounded-3" id="authNavTabs" role="tablist">
@@ -494,10 +779,10 @@
             <div class="tab-pane fade show active" id="tab-signin" role="tabpanel">
               <form onsubmit="event.preventDefault(); App.handleSignIn();">
                 <div class="mb-3">
-                  <label class="form-label small fw-bold text-main">Email or Username</label>
+                  <label class="form-label small fw-bold text-main">Email Address</label>
                   <div class="input-group">
                     <span class="input-group-text"><i class="fa-solid fa-envelope text-muted"></i></span>
-                    <input type="text" class="form-control" id="loginEmailInput" placeholder="name@example.com" required autofocus>
+                    <input type="email" class="form-control" id="loginEmailInput" placeholder="name@example.com" required autofocus>
                   </div>
                 </div>
                 <div class="mb-3">
@@ -516,8 +801,8 @@
                     <input class="form-check-input" type="checkbox" id="loginRememberMe" checked>
                     <label class="form-check-label small text-muted" for="loginRememberMe">Stay logged in</label>
                   </div>
-                  <span class="badge bg-primary-subtle text-primary border border-primary-subtle small font-monospace">
-                    <i class="fa-solid fa-key me-1"></i>HS256 JWT
+                  <span class="badge bg-success-subtle text-success border border-success-subtle small font-monospace">
+                    <i class="fa-solid fa-shield-halved me-1"></i>Supabase Auth
                   </span>
                 </div>
 
@@ -563,7 +848,7 @@
                 </div>
 
                 <button type="submit" class="btn btn-splitzy-success w-100 py-2 fw-bold fs-6" id="signupSubmitBtn">
-                  <i class="fa-solid fa-user-check me-1"></i> Create Account & Issue JWT
+                  <i class="fa-solid fa-user-check me-1"></i> Create Account & Get Started
                 </button>
               </form>
             </div>
@@ -598,12 +883,12 @@
             </li>
             <li class="nav-item" role="presentation">
               <button class="nav-link fw-bold small py-2" id="tab-security-btn" data-bs-toggle="tab" data-bs-target="#tab-security-pane" type="button" role="tab">
-                <i class="fa-solid fa-shield-halved me-1"></i> Security & JWT
+                <i class="fa-solid fa-key me-1"></i> Security & Password
               </button>
             </li>
             <li class="nav-item" role="presentation">
               <button class="nav-link fw-bold small py-2" id="tab-data-btn" data-bs-toggle="tab" data-bs-target="#tab-data-pane" type="button" role="tab">
-                <i class="fa-solid fa-database me-1"></i> Backup & Data
+                <i class="fa-solid fa-database me-1"></i> Database & Schema
               </button>
             </li>
           </ul>
@@ -618,7 +903,7 @@
                 </div>
                 <div class="mb-3">
                   <label class="form-label small fw-bold text-main">Email Address</label>
-                  <input type="email" class="form-control font-monospace" id="profileEmailInput" placeholder="name@example.com">
+                  <input type="email" class="form-control font-monospace" id="profileEmailInput" readonly disabled>
                 </div>
                 <div class="mb-3">
                   <label class="form-label small fw-bold text-main">Default UPI ID <small class="text-muted fw-normal">(for receiving settlements)</small></label>
@@ -637,65 +922,43 @@
               </form>
             </div>
 
-            <!-- 2. Security & JWT Tab -->
+            <!-- 2. Security & Password Tab -->
             <div class="tab-pane fade" id="tab-security-pane" role="tabpanel">
               <!-- Change Password Form -->
-              <form onsubmit="event.preventDefault(); App.handleChangePassword();" class="mb-4">
+              <form onsubmit="event.preventDefault(); App.handleChangePassword();" class="mb-3">
                 <h6 class="fw-bold text-main mb-2"><i class="fa-solid fa-lock text-warning me-1"></i> Change Password</h6>
                 <div class="mb-2">
-                  <label class="form-label small fw-bold text-muted mb-1">Current Password</label>
-                  <input type="password" class="form-control form-control-sm" id="currPasswordInput" required>
-                </div>
-                <div class="mb-2">
                   <label class="form-label small fw-bold text-muted mb-1">New Password (min 6 characters)</label>
-                  <input type="password" class="form-control form-control-sm" id="newPasswordInput" minlength="6" required>
+                  <input type="password" class="form-control form-control-sm" id="newPasswordInput" minlength="6" placeholder="Enter new password" required>
                 </div>
                 <div class="mb-3">
                   <label class="form-label small fw-bold text-muted mb-1">Confirm New Password</label>
-                  <input type="password" class="form-control form-control-sm" id="confirmNewPasswordInput" minlength="6" required>
+                  <input type="password" class="form-control form-control-sm" id="confirmNewPasswordInput" minlength="6" placeholder="Re-enter new password" required>
                 </div>
                 <button type="submit" class="btn btn-sm btn-outline-warning w-100 fw-bold py-2">
-                  <i class="fa-solid fa-key me-1"></i> Update Password
+                  <i class="fa-solid fa-key me-1"></i> Update Password in Supabase
                 </button>
               </form>
-
-              <!-- JWT Session Diagnostics Card -->
-              <div class="p-3 rounded-3" style="background: var(--bg-surface-elevated); border: 1px solid var(--card-border);">
-                <div class="d-flex align-items-center justify-content-between mb-2">
-                  <span class="small fw-bold text-main"><i class="fa-solid fa-id-badge text-primary me-1"></i> JWT Authentication Token</span>
-                  <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 small">
-                    <i class="fa-solid fa-circle-check me-1"></i>Active (HS256)
-                  </span>
-                </div>
-                <div class="small text-muted font-monospace mb-2 text-truncate" id="jwtTokenPreview" style="font-size: 0.72rem;">
-                  <!-- Token string -->
-                </div>
-                <div class="d-flex justify-content-between align-items-center">
-                  <small class="text-muted" id="jwtExpiryText" style="font-size: 0.75rem;">Expires in 7 days</small>
-                  <button type="button" class="btn btn-sm btn-link text-decoration-none p-0" onclick="App.copyJwtToken()">
-                    <i class="fa-solid fa-copy me-1"></i> Copy Token
-                  </button>
-                </div>
-              </div>
             </div>
 
-            <!-- 3. Backup & Data Tab -->
+            <!-- 3. Database & Schema Tab -->
             <div class="tab-pane fade" id="tab-data-pane" role="tabpanel">
               <div class="p-3 rounded-3 mb-3" style="background: var(--bg-surface-elevated); border: 1px solid var(--card-border);">
-                <h6 class="fw-bold text-main mb-1"><i class="fa-solid fa-download text-primary me-1"></i> Export Local Data</h6>
-                <p class="small text-muted mb-2">Download a complete JSON backup of all your groups, expenses, settlements, and member UPI IDs.</p>
+                <h6 class="fw-bold text-main mb-1"><i class="fa-solid fa-bolt text-success me-1"></i> Supabase Real-Time Engine</h6>
+                <p class="small text-muted mb-2">Splitzy uses PostgreSQL with Row-Level Security (RLS) & WebSockets for live group collaboration.</p>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 small">
+                    <i class="fa-solid fa-check-double me-1"></i>PostgreSQL Tables Active
+                  </span>
+                </div>
+              </div>
+
+              <div class="p-3 rounded-3 mb-3" style="background: var(--bg-surface-elevated); border: 1px solid var(--card-border);">
+                <h6 class="fw-bold text-main mb-1"><i class="fa-solid fa-download text-primary me-1"></i> Export Data Backup</h6>
+                <p class="small text-muted mb-2">Download a complete JSON backup of all your synced groups, expenses, and settlements.</p>
                 <button type="button" class="btn btn-sm btn-splitzy-secondary w-100 fw-bold" onclick="App.exportBackupJSON()">
                   <i class="fa-solid fa-file-export me-1"></i> Download JSON Backup
                 </button>
-              </div>
-
-              <div class="p-3 rounded-3" style="background: var(--bg-surface-elevated); border: 1px solid var(--card-border);">
-                <h6 class="fw-bold text-main mb-1"><i class="fa-solid fa-upload text-success me-1"></i> Restore from Backup</h6>
-                <p class="small text-muted mb-2">Restore your previous Splitzy workspace from a downloaded JSON file.</p>
-                <button type="button" class="btn btn-sm btn-outline-success w-100 fw-bold" onclick="document.getElementById('importBackupFile').click()">
-                  <i class="fa-solid fa-file-import me-1"></i> Restore JSON File
-                </button>
-                <input type="file" id="importBackupFile" class="d-none" accept=".json" onchange="App.importBackupJSON(event)">
               </div>
             </div>
           </div>
@@ -1088,13 +1351,12 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
-  <!-- Firebase App & Firestore SDKs (v10 compat) -->
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <!-- Supabase JS Client (v2) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <!-- Splitzy Modules -->
-  <script src="js/firebase-config.js"></script>
-  <script src="js/realtime.js"></script>
+  <script src="js/supabase-config.js"></script>
+  <script src="js/supabase.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/settlement.js"></script>

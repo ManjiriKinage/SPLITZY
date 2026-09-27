@@ -19,50 +19,48 @@ class SplitzyApp {
     document.documentElement.setAttribute('data-theme', savedTheme);
     this.updateThemeIcon(savedTheme);
 
-    // 1. JWT Authentication Initialization
+    // 1. Supabase Authentication & Realtime Initialization
     if (typeof authManager !== 'undefined') {
       await authManager.init();
     }
 
-    // 2. Real-Time Cloud Sync Initialization
-    if (typeof realtimeSync !== 'undefined') {
-      realtimeSync.init();
-      this.updateCloudSyncStatusBadge(realtimeSync.status);
+    if (typeof supabaseEngine !== 'undefined') {
+      this.updateCloudSyncStatusBadge(supabaseEngine.status);
     }
 
-    // 3. User Profile Setup / Auth Check
+    // 2. User Profile Setup / Auth Check (Forces Login/Register if not signed in)
     this.checkUserAuthStatus();
 
-    // 4. Navigation Setup (Desktop + Mobile)
+    // 3. Navigation Setup (Desktop + Mobile)
     this.setupNavigation();
 
-    // 5. Global Event Listeners & PWA Install Hook
+    // 4. Global Event Listeners & PWA Install Hook
     this.setupEventListeners();
 
-    // 6. Check URL parameters for ?join=CODE or ?group=CODE
+    // 5. Check URL parameters for ?join=CODE or ?group=CODE
     this.handleUrlJoinParameters();
 
-    // 7. Initial View Render
+    // 6. Initial View Render
     this.renderActiveView();
   }
 
   // --- Authentication & Profile Management ---
   checkUserAuthStatus() {
     const isAuth = typeof authManager !== 'undefined' && authManager.isAuthenticated();
-    const user = isAuth ? authManager.getUser() : storage.getUserProfile();
+    const user = isAuth ? authManager.getUser() : null;
 
     this.updateUserProfileUI(user, isAuth);
 
-    if (!isAuth && !user) {
+    if (!isAuth) {
       setTimeout(() => {
-        this.openAuthModal('signup');
-      }, 500);
+        this.openAuthModal('signin', true);
+      }, 250);
     }
   }
 
   updateUserProfileUI(user, isAuthenticated = false) {
-    const userName = user ? user.name : 'You';
-    const userEmail = user?.email || (isAuthenticated ? 'Active User' : 'Guest Mode');
+    const userName = user ? user.name : 'Sign In';
+    const userEmail = user?.email || (isAuthenticated ? 'Active User' : 'Please Sign In');
     const userColor = user?.color || GroupsManager.getMemberColor(userName);
     const initials = GroupsManager.getInitials(userName);
 
@@ -89,7 +87,7 @@ class SplitzyApp {
     if (modalEmail) modalEmail.textContent = userEmail;
   }
 
-  openAuthModal(mode = 'signin') {
+  openAuthModal(mode = 'signin', isForced = false) {
     const modalEl = document.getElementById('authModal');
     if (!modalEl) return;
 
@@ -101,7 +99,19 @@ class SplitzyApp {
       if (tabBtn) bootstrap.Tab.getOrCreateInstance(tabBtn).show();
     }
 
-    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    const closeBtn = modalEl.querySelector('.btn-close');
+    if (closeBtn) {
+      closeBtn.style.display = isForced ? 'none' : 'block';
+    }
+
+    let modalInstance = bootstrap.Modal.getInstance(modalEl);
+    if (!modalInstance) {
+      modalInstance = new bootstrap.Modal(modalEl, {
+        backdrop: isForced ? 'static' : true,
+        keyboard: !isForced
+      });
+    }
+    modalInstance.show();
   }
 
   async handleSignIn() {
@@ -109,21 +119,35 @@ class SplitzyApp {
     const passInput = document.getElementById('loginPasswordInput');
     const email = emailInput?.value.trim();
     const password = passInput?.value.trim();
+    const submitBtn = document.getElementById('loginSubmitBtn');
 
     if (!email || !password) {
       this.showToast('Please enter your email and password.', 'warning');
       return;
     }
 
-    if (typeof authManager !== 'undefined') {
-      const result = await authManager.login(email, password);
-      if (result.success) {
-        this.showToast(result.message, 'success');
-        const modalEl = document.getElementById('authModal');
-        bootstrap.Modal.getInstance(modalEl)?.hide();
-        this.renderActiveView();
-      } else {
-        this.showToast(result.message, 'danger');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Signing in...';
+    }
+
+    try {
+      if (typeof authManager !== 'undefined') {
+        const result = await authManager.login(email, password);
+        if (result.success) {
+          this.showToast(result.message, 'success');
+          const modalEl = document.getElementById('authModal');
+          bootstrap.Modal.getInstance(modalEl)?.hide();
+          this.checkUserAuthStatus();
+          this.renderActiveView();
+        } else {
+          this.showToast(result.message, 'danger');
+        }
+      }
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket me-1"></i> Sign In';
       }
     }
   }
@@ -133,6 +157,7 @@ class SplitzyApp {
     const emailInput = document.getElementById('signupEmailInput');
     const passInput = document.getElementById('signupPasswordInput');
     const upiInput = document.getElementById('signupUpiInput');
+    const submitBtn = document.getElementById('signupSubmitBtn');
 
     const name = nameInput?.value.trim();
     const email = emailInput?.value.trim();
@@ -144,15 +169,33 @@ class SplitzyApp {
       return;
     }
 
-    if (typeof authManager !== 'undefined') {
-      const result = await authManager.register(name, email, password, upi);
-      if (result.success) {
-        this.showToast(result.message, 'success');
-        const modalEl = document.getElementById('authModal');
-        bootstrap.Modal.getInstance(modalEl)?.hide();
-        this.renderActiveView();
-      } else {
-        this.showToast(result.message, 'danger');
+    if (password.length < 6) {
+      this.showToast('Password must be at least 6 characters.', 'warning');
+      return;
+    }
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating account...';
+    }
+
+    try {
+      if (typeof authManager !== 'undefined') {
+        const result = await authManager.register(name, email, password, upi);
+        if (result.success) {
+          this.showToast(result.message, 'success');
+          const modalEl = document.getElementById('authModal');
+          bootstrap.Modal.getInstance(modalEl)?.hide();
+          this.checkUserAuthStatus();
+          this.renderActiveView();
+        } else {
+          this.showToast(result.message, 'danger');
+        }
+      }
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fa-solid fa-user-check me-1"></i> Create Account & Get Started';
       }
     }
   }
@@ -234,7 +277,6 @@ class SplitzyApp {
 
   async saveProfileInfo() {
     const name = document.getElementById('profileFullNameInput').value.trim();
-    const email = document.getElementById('profileEmailInput').value.trim();
     const upi = document.getElementById('profileUpiInput').value.trim();
     const color = this.selectedAvatarColor || null;
 
@@ -244,7 +286,7 @@ class SplitzyApp {
     }
 
     if (typeof authManager !== 'undefined') {
-      const result = await authManager.updateProfile(name, email, upi, color);
+      const result = await authManager.updateProfile(name, upi, color);
       if (result.success) {
         this.showToast(result.message, 'success');
         this.updateUserProfileUI(authManager.getUser(), true);
@@ -254,22 +296,15 @@ class SplitzyApp {
       } else {
         this.showToast(result.message, 'danger');
       }
-    } else {
-      storage.setUserProfile(name, upi);
-      this.showToast('Profile updated!', 'success');
-      const modalEl = document.getElementById('profileModal');
-      bootstrap.Modal.getInstance(modalEl)?.hide();
-      this.renderActiveView();
     }
   }
 
   async handleChangePassword() {
-    const currPass = document.getElementById('currPasswordInput').value.trim();
     const newPass = document.getElementById('newPasswordInput').value.trim();
     const confirmPass = document.getElementById('confirmNewPasswordInput').value.trim();
 
-    if (!currPass || !newPass) {
-      this.showToast('Please enter current and new passwords.', 'warning');
+    if (!newPass) {
+      this.showToast('Please enter your new password.', 'warning');
       return;
     }
 
@@ -284,10 +319,9 @@ class SplitzyApp {
     }
 
     if (typeof authManager !== 'undefined') {
-      const result = await authManager.changePassword(currPass, newPass);
+      const result = await authManager.changePassword(newPass);
       if (result.success) {
         this.showToast(result.message, 'success');
-        document.getElementById('currPasswordInput').value = '';
         document.getElementById('newPasswordInput').value = '';
         document.getElementById('confirmNewPasswordInput').value = '';
       } else {
@@ -296,28 +330,19 @@ class SplitzyApp {
     }
   }
 
-  copyJwtToken() {
-    const token = typeof authManager !== 'undefined' ? authManager.getToken() : '';
-    if (token) {
-      navigator.clipboard.writeText(token);
-      this.showToast('JWT Token copied to clipboard! 📋', 'success');
-    } else {
-      this.showToast('No active token to copy.', 'info');
-    }
-  }
-
-  logout() {
+  async logout() {
     if (confirm('Are you sure you want to sign out of Splitzy?')) {
       if (typeof authManager !== 'undefined') {
-        authManager.logout(false);
+        await authManager.logout();
       }
       const modalEl = document.getElementById('profileModal');
       bootstrap.Modal.getInstance(modalEl)?.hide();
       this.updateUserProfileUI(null, false);
       this.showToast('Signed out successfully. 👋', 'info');
+      this.renderActiveView();
       setTimeout(() => {
-        this.openAuthModal('signin');
-      }, 300);
+        this.openAuthModal('signin', true);
+      }, 250);
     }
   }
 
@@ -348,15 +373,12 @@ class SplitzyApp {
         const currentUserName = storage.getUserName();
         storage.addMemberToGroup(importResult.group.id, currentUserName);
         
-        // Clean URL to keep it pretty and prevent re-importing on reload
         const cleanUrl = window.location.pathname + '?group=' + encodeURIComponent(importResult.group.id);
         window.history.replaceState({}, document.title, cleanUrl);
 
         this.openGroupDetail(importResult.group.id);
         this.showToast(`🎉 Joined "${importResult.group.name}" with ${importResult.expenseCount || 0} expenses!`, 'success');
         return;
-      } else {
-        this.showToast('Could not import group data: invalid payload.', 'danger');
       }
     }
 
@@ -364,12 +386,13 @@ class SplitzyApp {
     if (joinCode) {
       let group = storage.getGroupById(joinCode);
       
-      // If not present in local storage, query Cloud Firestore in real time
-      if (!group && typeof realtimeSync !== 'undefined' && realtimeSync.isConfigured()) {
+      // If not present in local cache, query Supabase in real time
+      if (!group && typeof supabaseEngine !== 'undefined' && supabaseEngine.isConfigured()) {
         this.showToast(`Fetching group "${joinCode}" from Cloud... ⚡`, 'info');
-        const remoteResult = await realtimeSync.fetchGroupByCode(joinCode);
-        if (remoteResult && remoteResult.group) {
-          group = remoteResult.group;
+        const remoteResult = await supabaseEngine.findGroupByCode(joinCode);
+        if (remoteResult) {
+          group = remoteResult;
+          storage.upsertGroupInCache(group);
         }
       }
 
@@ -393,14 +416,20 @@ class SplitzyApp {
       this.renderActiveView();
     });
 
-    // Realtime Cloud Sync status listener
-    window.addEventListener('splitzy:sync-status', (e) => {
+    // Supabase status listener
+    window.addEventListener('splitzy:supabase-status', (e) => {
       this.updateCloudSyncStatusBadge(e.detail.status);
     });
 
-    // JWT Auth & Profile updates
+    // Supabase Auth & Profile updates
     window.addEventListener('splitzy:auth-changed', (e) => {
       this.updateUserProfileUI(e.detail.user, e.detail.isAuthenticated);
+      if (e.detail.isAuthenticated) {
+        const modalEl = document.getElementById('authModal');
+        bootstrap.Modal.getInstance(modalEl)?.hide();
+      } else {
+        this.openAuthModal('signin', true);
+      }
       this.renderActiveView();
     });
 
@@ -531,8 +560,40 @@ class SplitzyApp {
   }
 
   renderActiveView() {
+    const isAuth = typeof authManager !== 'undefined' && authManager.isAuthenticated();
+    const kpiRibbon = document.querySelector('.main-content-wrapper > .row.g-2');
+    const desktopTabs = document.querySelector('.splitzy-nav-tabs')?.closest('.d-none.d-md-flex');
+    const mobileNav = document.getElementById('mobileBottomNav');
+    const addExpenseFab = document.querySelector('.fab-btn');
+
+    if (!isAuth) {
+      if (kpiRibbon) kpiRibbon.classList.add('d-none');
+      if (desktopTabs) desktopTabs.classList.add('d-none');
+      if (mobileNav) mobileNav.classList.add('d-none');
+      if (addExpenseFab) addExpenseFab.classList.add('d-none');
+
+      document.querySelectorAll('.view-section').forEach(sec => sec.classList.add('d-none'));
+      const authSec = document.getElementById('view-auth');
+      if (authSec) authSec.classList.remove('d-none');
+      return;
+    }
+
+    if (kpiRibbon) kpiRibbon.classList.remove('d-none');
+    if (desktopTabs) desktopTabs.classList.remove('d-none');
+    if (mobileNav) mobileNav.classList.remove('d-none');
+    if (addExpenseFab) addExpenseFab.classList.remove('d-none');
+
     const currentUserName = storage.getUserName();
     this.renderMetricsRibbon(currentUserName);
+
+    if (this.currentView === 'auth') {
+      this.currentView = 'dashboard';
+    }
+
+    // Ensure active view is visible
+    document.querySelectorAll('.view-section').forEach(sec => sec.classList.add('d-none'));
+    const activeSec = document.getElementById(`view-${this.currentView}`);
+    if (activeSec) activeSec.classList.remove('d-none');
 
     if (this.currentView === 'dashboard') {
       this.renderDashboardView(currentUserName);
@@ -542,6 +603,194 @@ class SplitzyApp {
       this.renderSettlementsCenterView(currentUserName);
     } else if (this.currentView === 'activity') {
       this.renderActivityHistoryView(currentUserName);
+    } else if (this.currentView === 'profile') {
+      this.renderProfileView(currentUserName);
+    }
+  }
+
+  // --- Page Authentication Handlers (Direct on Auth View) ---
+  async handlePageSignIn() {
+    const emailInput = document.getElementById('pageLoginEmail');
+    const passInput = document.getElementById('pageLoginPassword');
+    const email = emailInput?.value.trim();
+    const password = passInput?.value.trim();
+    const submitBtn = document.getElementById('pageLoginSubmitBtn');
+
+    if (!email || !password) {
+      this.showToast('Please enter email and password.', 'warning');
+      return;
+    }
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Signing in...';
+    }
+
+    try {
+      if (typeof authManager !== 'undefined') {
+        const result = await authManager.login(email, password);
+        if (result.success) {
+          this.showToast(result.message, 'success');
+          this.currentView = 'dashboard';
+          this.checkUserAuthStatus();
+          this.renderActiveView();
+        } else {
+          this.showToast(result.message, 'danger');
+        }
+      }
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket me-1"></i> Sign In to Splitzy';
+      }
+    }
+  }
+
+  async handlePageSignUp() {
+    const nameInput = document.getElementById('pageSignupName');
+    const emailInput = document.getElementById('pageSignupEmail');
+    const passInput = document.getElementById('pageSignupPassword');
+    const upiInput = document.getElementById('pageSignupUpi');
+    const submitBtn = document.getElementById('pageSignupSubmitBtn');
+
+    const name = nameInput?.value.trim();
+    const email = emailInput?.value.trim();
+    const password = passInput?.value.trim();
+    const upi = upiInput?.value.trim() || '';
+
+    if (!name || !email || !password) {
+      this.showToast('Please fill in all required fields.', 'warning');
+      return;
+    }
+
+    if (password.length < 6) {
+      this.showToast('Password must be at least 6 characters.', 'warning');
+      return;
+    }
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating account...';
+    }
+
+    try {
+      if (typeof authManager !== 'undefined') {
+        const result = await authManager.register(name, email, password, upi);
+        if (result.success) {
+          this.showToast(result.message, 'success');
+          this.currentView = 'dashboard';
+          this.checkUserAuthStatus();
+          this.renderActiveView();
+        } else {
+          this.showToast(result.message, 'danger');
+        }
+      }
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fa-solid fa-user-plus me-1"></i> Create Account & Get Started';
+      }
+    }
+  }
+
+  // --- User Management & Profile Page View ---
+  renderProfileView(currentUserName) {
+    const user = typeof authManager !== 'undefined' ? authManager.getUser() : null;
+    const name = user?.name || currentUserName;
+    const email = user?.email || 'Registered User';
+    const upi = user?.upiId || storage.getUserUpiId();
+    const color = user?.color || GroupsManager.getMemberColor(name);
+    const initials = GroupsManager.getInitials(name);
+
+    const avatarChip = document.getElementById('pageProfileAvatarChip');
+    const fullNameEl = document.getElementById('pageProfileFullName');
+    const emailEl = document.getElementById('pageProfileEmail');
+    const nameInput = document.getElementById('pageProfileNameInput');
+    const emailInput = document.getElementById('pageProfileEmailInput');
+    const upiInput = document.getElementById('pageProfileUpiInput');
+
+    if (avatarChip) {
+      avatarChip.textContent = initials;
+      avatarChip.style.backgroundColor = color;
+    }
+    if (fullNameEl) fullNameEl.textContent = name;
+    if (emailEl) emailEl.textContent = email;
+    if (nameInput) nameInput.value = name;
+    if (emailInput) emailInput.value = email;
+    if (upiInput) upiInput.value = upi;
+
+    // Color Palette
+    const paletteContainer = document.getElementById('pageAvatarColorPickerContainer');
+    if (paletteContainer) {
+      const palette = ['#4338ca', '#059669', '#d97706', '#dc2626', '#0284c7', '#7c3aed', '#db2777', '#2563eb', '#0d9488'];
+      paletteContainer.innerHTML = palette.map(c => `
+        <div class="color-swatch-chip ${c === color ? 'selected' : ''}" 
+             style="width: 32px; height: 32px; border-radius: 50%; background-color: ${c}; cursor: pointer; border: 2px solid ${c === color ? 'var(--text-main)' : 'transparent'};"
+             onclick="App.selectPageAvatarColor('${c}')">
+        </div>
+      `).join('');
+    }
+  }
+
+  selectPageAvatarColor(color) {
+    this.selectedPageAvatarColor = color;
+    document.querySelectorAll('#pageAvatarColorPickerContainer .color-swatch-chip').forEach(el => {
+      el.style.border = el.style.backgroundColor === color ? '2px solid var(--text-main)' : 'transparent';
+    });
+    const chip = document.getElementById('pageProfileAvatarChip');
+    if (chip) chip.style.backgroundColor = color;
+  }
+
+  async savePageProfileInfo() {
+    const name = document.getElementById('pageProfileNameInput').value.trim();
+    const upi = document.getElementById('pageProfileUpiInput').value.trim();
+    const color = this.selectedPageAvatarColor || null;
+
+    if (!name) {
+      this.showToast('Please enter your full name', 'warning');
+      return;
+    }
+
+    if (typeof authManager !== 'undefined') {
+      const result = await authManager.updateProfile(name, upi, color);
+      if (result.success) {
+        this.showToast(result.message, 'success');
+        this.updateUserProfileUI(authManager.getUser(), true);
+        this.renderActiveView();
+      } else {
+        this.showToast(result.message, 'danger');
+      }
+    }
+  }
+
+  async handlePageChangePassword() {
+    const newPass = document.getElementById('pageNewPasswordInput').value.trim();
+    const confirmPass = document.getElementById('pageConfirmNewPasswordInput').value.trim();
+
+    if (!newPass) {
+      this.showToast('Please enter your new password.', 'warning');
+      return;
+    }
+
+    if (newPass !== confirmPass) {
+      this.showToast('New passwords do not match.', 'warning');
+      return;
+    }
+
+    if (newPass.length < 6) {
+      this.showToast('Password must be at least 6 characters.', 'warning');
+      return;
+    }
+
+    if (typeof authManager !== 'undefined') {
+      const result = await authManager.changePassword(newPass);
+      if (result.success) {
+        this.showToast(result.message, 'success');
+        document.getElementById('pageNewPasswordInput').value = '';
+        document.getElementById('pageConfirmNewPasswordInput').value = '';
+      } else {
+        this.showToast(result.message, 'danger');
+      }
     }
   }
 
@@ -686,9 +935,6 @@ class SplitzyApp {
 
   // --- 2. Group Detail View ---
   openGroupDetail(groupId) {
-    if (typeof realtimeSync !== 'undefined' && realtimeSync.isConfigured()) {
-      realtimeSync.listenToGroup(groupId);
-    }
     this.navigate('group', groupId);
   }
 
@@ -1228,17 +1474,18 @@ class SplitzyApp {
     // Try finding by local code
     let group = storage.getGroupById(code);
 
-    // If not in local storage, query Cloud Firestore in real time
-    if (!group && typeof realtimeSync !== 'undefined' && realtimeSync.isConfigured()) {
-      this.showToast(`Searching Cloud for "${code}"... ⚡`, 'info');
-      const remoteResult = await realtimeSync.fetchGroupByCode(code);
-      if (remoteResult && remoteResult.group) {
-        group = remoteResult.group;
+    // If not in local cache, query Supabase in real time
+    if (!group && typeof supabaseEngine !== 'undefined' && supabaseEngine.isConfigured()) {
+      this.showToast(`Searching Supabase for "${code}"... ⚡`, 'info');
+      const remoteResult = await supabaseEngine.findGroupByCode(code);
+      if (remoteResult) {
+        group = remoteResult;
+        storage.upsertGroupInCache(group);
       }
     }
 
     if (!group) {
-      this.showToast(`Group "${code}" was not found. Paste the full Invite Link to sync it!`, 'danger');
+      this.showToast(`Group "${code}" was not found. Please check the code or paste the Invite Link!`, 'danger');
       return;
     }
 
@@ -1507,16 +1754,20 @@ class SplitzyApp {
 
     if (status === 'connected') {
       if (dot) dot.className = 'sync-dot bg-success';
-      if (label) label.textContent = 'Cloud Live ⚡';
-      if (btn) btn.title = 'Real-Time Cloud Sync: Connected & Live';
+      if (label) label.textContent = 'Supabase Live ⚡';
+      if (btn) btn.title = 'Supabase Real-Time WebSockets: Connected & Live';
     } else if (status === 'connecting') {
       if (dot) dot.className = 'sync-dot bg-warning';
       if (label) label.textContent = 'Connecting...';
-      if (btn) btn.title = 'Connecting to real-time cloud...';
+      if (btn) btn.title = 'Connecting to Supabase...';
+    } else if (status === 'unconfigured') {
+      if (dot) dot.className = 'sync-dot bg-warning';
+      if (label) label.textContent = 'Config Needed';
+      if (btn) btn.title = 'Add Supabase URL & Anon Key in js/supabase-config.js';
     } else {
       if (dot) dot.className = 'sync-dot bg-secondary';
-      if (label) label.textContent = 'Offline Mode';
-      if (btn) btn.title = 'Running with local storage';
+      if (label) label.textContent = 'Disconnected';
+      if (btn) btn.title = 'Supabase connection offline';
     }
   }
 

@@ -815,3 +815,72 @@ a:hover {
   border-radius: var(--radius-md) !important;
   box-shadow: var(--shadow-lg) !important;
 }
+
+/* ==========================================================================
+   Dedicated Auth Page & User Management Styles
+   ========================================================================== */
+.auth-page-wrapper {
+  min-height: calc(100vh - 120px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem 0;
+}
+
+.auth-card-main {
+  background: var(--bg-surface);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  transition: border-color var(--transition-normal);
+}
+
+.auth-hero-side {
+  background: linear-gradient(145deg, var(--bg-surface-elevated) 0%, var(--bg-surface) 100%);
+  border-right: 1px solid var(--card-border);
+  position: relative;
+  overflow: hidden;
+}
+
+.auth-feature-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 1.25rem;
+}
+
+.auth-feature-icon {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+}
+
+.auth-nav-pill {
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  font-size: 0.85rem;
+  padding: 0.6rem 1rem;
+  color: var(--text-muted);
+  border: none;
+  background: transparent;
+  transition: all var(--transition-fast);
+}
+
+.auth-nav-pill.active {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+  box-shadow: var(--shadow-sm);
+}
+
+.user-management-profile-header {
+  background: linear-gradient(135deg, var(--primary-light) 0%, var(--bg-surface) 100%);
+  border-bottom: 1px solid var(--card-border);
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+}
+
