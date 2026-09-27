@@ -13,47 +13,82 @@ class AuthManager {
   }
 
   async init() {
+    // 1. Try Supabase Engine initialization
     if (typeof supabaseEngine !== 'undefined') {
-      const initialized = await supabaseEngine.init();
-      if (initialized && supabaseEngine.isAuthenticated()) {
-        this.currentUser = supabaseEngine.getUser();
+      try {
+        const initialized = await supabaseEngine.init();
+        if (initialized && supabaseEngine.isAuthenticated()) {
+          this.currentUser = supabaseEngine.getUser();
+          return true;
+        }
+      } catch (e) {
+        console.warn('[Splitzy Auth] Supabase init warning:', e);
+      }
+    }
+
+    // 2. Check cached local user profile from localStorage
+    if (typeof storage !== 'undefined') {
+      const cached = storage.getUserProfile();
+      if (cached && cached.name && cached.name !== 'You' && (cached.email || cached.id)) {
+        this.currentUser = cached;
         return true;
       }
     }
+
     return false;
   }
 
   isAuthenticated() {
-    return typeof supabaseEngine !== 'undefined' && supabaseEngine.isAuthenticated();
+    if (typeof supabaseEngine !== 'undefined' && supabaseEngine.isAuthenticated()) {
+      return true;
+    }
+    if (this.currentUser && this.currentUser.name && this.currentUser.name !== 'You') {
+      return true;
+    }
+    if (typeof storage !== 'undefined') {
+      const cached = storage.getUserProfile();
+      return !!(cached && cached.name && cached.name !== 'You' && (cached.email || cached.id));
+    }
+    return false;
   }
 
   getUser() {
     if (typeof supabaseEngine !== 'undefined' && supabaseEngine.getUser()) {
-      return supabaseEngine.getUser();
+      const u = supabaseEngine.getUser();
+      this.currentUser = u;
+      return u;
+    }
+    if (this.currentUser && this.currentUser.name && this.currentUser.name !== 'You') {
+      return this.currentUser;
+    }
+    if (typeof storage !== 'undefined') {
+      return storage.getUserProfile();
     }
     return { name: 'You', email: '', upiId: '', color: '#4f46e5' };
   }
 
   async login(email, password) {
-    if (typeof supabaseEngine === 'undefined') {
-      return { success: false, message: 'Supabase Engine not available.' };
+    if (typeof supabaseEngine !== 'undefined') {
+      const result = await supabaseEngine.signIn(email, password);
+      if (result.success) {
+        this.currentUser = result.user;
+        if (typeof storage !== 'undefined') storage.setLocalUserProfile(result.user);
+        return result;
+      }
     }
-    const result = await supabaseEngine.signIn(email, password);
-    if (result.success) {
-      this.currentUser = result.user;
-    }
-    return result;
+    return { success: false, message: 'Invalid email or password.' };
   }
 
   async register(name, email, password, upiId = '') {
-    if (typeof supabaseEngine === 'undefined') {
-      return { success: false, message: 'Supabase Engine not available.' };
+    if (typeof supabaseEngine !== 'undefined') {
+      const result = await supabaseEngine.signUp(email, password, name, upiId);
+      if (result.success) {
+        this.currentUser = result.user;
+        if (typeof storage !== 'undefined') storage.setLocalUserProfile(result.user);
+        return result;
+      }
     }
-    const result = await supabaseEngine.signUp(email, password, name, upiId);
-    if (result.success) {
-      this.currentUser = result.user;
-    }
-    return result;
+    return { success: false, message: 'Registration failed. Please check your credentials.' };
   }
 
   async logout() {
@@ -61,6 +96,9 @@ class AuthManager {
       await supabaseEngine.signOut();
     }
     this.currentUser = null;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('splitzy_local_user_v2');
+    }
     return { success: true };
   }
 

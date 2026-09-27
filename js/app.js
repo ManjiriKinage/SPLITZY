@@ -37,11 +37,30 @@ class SplitzyApp {
     // 4. Global Event Listeners & PWA Install Hook
     this.setupEventListeners();
 
-    // 5. Check URL parameters for ?join=CODE or ?group=CODE
-    this.handleUrlJoinParameters();
+    // 5. Restore active group or view state across page refresh
+    this.restoreSessionViewState();
 
-    // 6. Initial View Render
+    // 6. Check URL parameters for ?join=CODE or ?group=CODE
+    await this.handleUrlJoinParameters();
+
+    // 7. Initial View Render
     this.renderActiveView();
+  }
+
+  restoreSessionViewState() {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlGroup = urlParams.get('group');
+      const savedGroup = urlGroup || localStorage.getItem(STORAGE_KEYS.ACTIVE_GROUP);
+      const savedView = localStorage.getItem(STORAGE_KEYS.ACTIVE_VIEW);
+
+      if (savedGroup && storage.getGroupById(savedGroup)) {
+        this.activeGroupId = savedGroup;
+        this.currentView = (savedView === 'group' || urlGroup) ? 'group' : (savedView || 'dashboard');
+      } else if (savedView && ['dashboard', 'settlements', 'activity', 'profile'].includes(savedView)) {
+        this.currentView = savedView;
+      }
+    } catch (e) {}
   }
 
   // --- Authentication & Profile Management ---
@@ -535,7 +554,15 @@ class SplitzyApp {
 
   navigate(viewName, groupId = null) {
     this.currentView = viewName;
-    if (groupId) this.activeGroupId = groupId;
+    if (groupId) {
+      this.activeGroupId = groupId;
+      try {
+        localStorage.setItem(STORAGE_KEYS.ACTIVE_GROUP, groupId);
+      } catch (e) {}
+    }
+    try {
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_VIEW, viewName);
+    } catch (e) {}
 
     // Desktop tabs update
     document.querySelectorAll('.splitzy-nav-tab').forEach(tab => {
@@ -1281,7 +1308,7 @@ class SplitzyApp {
     if (groupId) this.onExpenseGroupChanged(groupId);
   }
 
-  saveExpenseFromModal() {
+  async saveExpenseFromModal() {
     try {
       const groupId = document.getElementById('expenseGroupSelect').value;
       const title = document.getElementById('expenseTitle').value.trim();
@@ -1312,28 +1339,30 @@ class SplitzyApp {
 
       if (this.editingExpenseId) expenseData.id = this.editingExpenseId;
 
-      storage.saveExpense(expenseData);
+      await storage.saveExpense(expenseData);
 
       const modalEl = document.getElementById('expenseModal');
       bootstrap.Modal.getInstance(modalEl)?.hide();
 
       this.showToast('Expense saved successfully!', 'success');
       this.triggerConfetti();
+      this.renderActiveView();
     } catch (err) {
       this.showToast(err.message, 'danger');
     }
   }
 
-  deleteExpense(expenseId) {
+  async deleteExpense(expenseId) {
     if (confirm('Delete this expense?')) {
-      storage.deleteExpense(expenseId);
+      await storage.deleteExpense(expenseId);
       this.showToast('Expense deleted', 'info');
+      this.renderActiveView();
     }
   }
 
-  deleteGroup(groupId) {
+  async deleteGroup(groupId) {
     if (confirm('Are you sure you want to delete this group and all its expenses?')) {
-      storage.deleteGroup(groupId);
+      await storage.deleteGroup(groupId);
       this.navigate('dashboard');
       this.showToast('Group deleted', 'info');
     }
@@ -1385,7 +1414,7 @@ class SplitzyApp {
     this.renderTempMemberChips();
   }
 
-  saveNewGroup() {
+  async saveNewGroup() {
     const name = document.getElementById('newGroupName').value.trim();
     const category = document.getElementById('newGroupCategory').value;
     const icon = document.getElementById('newGroupIcon').value || 'fa-users';
@@ -1395,7 +1424,7 @@ class SplitzyApp {
       return;
     }
 
-    const group = storage.saveGroup({
+    const group = await storage.saveGroup({
       name,
       category,
       icon,
@@ -1660,7 +1689,7 @@ class SplitzyApp {
     ExportManager.downloadSettlementReceiptPDF(payer, receiver, amount, group ? group.name : 'Splitzy Group');
   }
 
-  recordSettlementPayment() {
+  async recordSettlementPayment() {
     const groupId = document.getElementById('settleGroupId').value;
     const payer = document.getElementById('settleFrom').value;
     const receiver = document.getElementById('settleTo').value;
@@ -1671,13 +1700,14 @@ class SplitzyApp {
       return;
     }
 
-    storage.recordSettlement({ groupId, payer, receiver, amount });
+    await storage.recordSettlement({ groupId, payer, receiver, amount });
 
     const modalEl = document.getElementById('settleUpModal');
     bootstrap.Modal.getInstance(modalEl)?.hide();
 
     this.showToast(`Settlement of ₹${amount} recorded!`, 'success');
     this.triggerConfetti();
+    this.renderActiveView();
   }
 
   // --- JSON Backup & Restore ---

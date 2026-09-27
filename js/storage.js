@@ -11,7 +11,12 @@
 const STORAGE_KEYS = {
   THEME: 'splitzy_theme_v2',
   MEMBER_UPIS: 'splitzy_member_upis_v2',
-  ACTIVE_GROUP: 'splitzy_active_group_v2'
+  ACTIVE_GROUP: 'splitzy_active_group_v2',
+  GROUPS: 'splitzy_groups_v2',
+  EXPENSES: 'splitzy_expenses_v2',
+  SETTLEMENTS: 'splitzy_settlements_v2',
+  LOCAL_USER: 'splitzy_local_user_v2',
+  ACTIVE_VIEW: 'splitzy_active_view_v2'
 };
 
 class StorageManager {
@@ -24,7 +29,22 @@ class StorageManager {
   }
 
   init() {
-    // Load local caches if any
+    // Load local caches immediately so data is available instantly on page load/refresh
+    try {
+      this.groupsCache = JSON.parse(localStorage.getItem(STORAGE_KEYS.GROUPS)) || [];
+    } catch (e) {
+      this.groupsCache = [];
+    }
+    try {
+      this.expensesCache = JSON.parse(localStorage.getItem(STORAGE_KEYS.EXPENSES)) || [];
+    } catch (e) {
+      this.expensesCache = [];
+    }
+    try {
+      this.settlementsCache = JSON.parse(localStorage.getItem(STORAGE_KEYS.SETTLEMENTS)) || [];
+    } catch (e) {
+      this.settlementsCache = [];
+    }
     try {
       this.memberUpis = JSON.parse(localStorage.getItem(STORAGE_KEYS.MEMBER_UPIS)) || {};
     } catch (e) {
@@ -32,36 +52,69 @@ class StorageManager {
     }
   }
 
+  persistGroups() {
+    try {
+      localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(this.groupsCache));
+    } catch (e) {
+      console.warn('[Splitzy Storage] Failed to persist groups:', e);
+    }
+  }
+
+  persistExpenses() {
+    try {
+      localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(this.expensesCache));
+    } catch (e) {
+      console.warn('[Splitzy Storage] Failed to persist expenses:', e);
+    }
+  }
+
+  persistSettlements() {
+    try {
+      localStorage.setItem(STORAGE_KEYS.SETTLEMENTS, JSON.stringify(this.settlementsCache));
+    } catch (e) {
+      console.warn('[Splitzy Storage] Failed to persist settlements:', e);
+    }
+  }
+
   clearState() {
     this.groupsCache = [];
     this.expensesCache = [];
     this.settlementsCache = [];
+    this.persistGroups();
+    this.persistExpenses();
+    this.persistSettlements();
     window.dispatchEvent(new CustomEvent('splitzy:data-updated'));
   }
 
-  // --- Cache Updaters (Called by Supabase Realtime Engine) ---
+  // --- Cache Updaters (Called by Supabase Realtime Engine & Local Operations) ---
   setGroupsCache(groups) {
     this.groupsCache = groups || [];
+    this.persistGroups();
   }
 
   upsertGroupInCache(group) {
     if (!group || !group.id) return;
-    const idx = this.groupsCache.findIndex(g => g.id === group.id);
+    const idx = this.groupsCache.findIndex(g => g.id === group.id || (group.code && g.code === group.code));
     if (idx !== -1) {
       this.groupsCache[idx] = { ...this.groupsCache[idx], ...group };
     } else {
       this.groupsCache.unshift(group);
     }
+    this.persistGroups();
   }
 
   removeGroupFromCache(groupId) {
     this.groupsCache = this.groupsCache.filter(g => g.id !== groupId && g.code !== groupId);
     this.expensesCache = this.expensesCache.filter(e => e.groupId !== groupId);
     this.settlementsCache = this.settlementsCache.filter(s => s.groupId !== groupId);
+    this.persistGroups();
+    this.persistExpenses();
+    this.persistSettlements();
   }
 
   setExpensesCache(expenses) {
     this.expensesCache = expenses || [];
+    this.persistExpenses();
   }
 
   upsertExpenseInCache(expense) {
@@ -72,14 +125,17 @@ class StorageManager {
     } else {
       this.expensesCache.unshift(expense);
     }
+    this.persistExpenses();
   }
 
   removeExpenseFromCache(expenseId) {
     this.expensesCache = this.expensesCache.filter(e => e.id !== expenseId);
+    this.persistExpenses();
   }
 
   setSettlementsCache(settlements) {
     this.settlementsCache = settlements || [];
+    this.persistSettlements();
   }
 
   upsertSettlementInCache(settlement) {
@@ -90,10 +146,12 @@ class StorageManager {
     } else {
       this.settlementsCache.unshift(settlement);
     }
+    this.persistSettlements();
   }
 
   removeSettlementFromCache(settlementId) {
     this.settlementsCache = this.settlementsCache.filter(s => s.id !== settlementId);
+    this.persistSettlements();
   }
 
   /**
@@ -108,17 +166,32 @@ class StorageManager {
     return `GRP-${code}`;
   }
 
-  // --- User Profile Getters (Backed by Supabase Engine) ---
+  // --- User Profile Getters (Backed by Supabase Engine + LocalStorage fallback) ---
   getUserProfile() {
     if (typeof supabaseEngine !== 'undefined' && supabaseEngine.getUser()) {
-      return supabaseEngine.getUser();
+      const user = supabaseEngine.getUser();
+      this.setLocalUserProfile(user);
+      return user;
     }
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.LOCAL_USER);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (e) {}
     return { name: 'You', email: '', upiId: '', color: '#4f46e5' };
+  }
+
+  setLocalUserProfile(user) {
+    if (!user) return;
+    try {
+      localStorage.setItem(STORAGE_KEYS.LOCAL_USER, JSON.stringify(user));
+    } catch (e) {}
   }
 
   getUserName() {
     const p = this.getUserProfile();
-    return p ? p.name : 'You';
+    return p ? (p.name || 'You') : 'You';
   }
 
   getUserUpiId() {

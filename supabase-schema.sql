@@ -71,31 +71,31 @@ ALTER TABLE public.groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.settlements ENABLE ROW LEVEL SECURITY;
 
--- 7. Define RLS Policies for Authenticated Users (Read/Write access)
--- (Allows logged-in users to collaborate in real-time on groups, expenses, and settlements)
+-- 7. Define RLS Policies for Authenticated and Anon Users (Read/Write access)
+-- (Allows logged-in users and invited members to collaborate in real-time on groups, expenses, and settlements)
 DO $$
 BEGIN
   -- Profiles policies
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'profiles' AND policyname = 'Allow authenticated users read profiles') THEN
-    CREATE POLICY "Allow authenticated users read profiles" ON public.profiles FOR SELECT TO authenticated USING (true);
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'profiles' AND policyname = 'Allow public read profiles') THEN
+    CREATE POLICY "Allow public read profiles" ON public.profiles FOR SELECT TO authenticated, anon USING (true);
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'profiles' AND policyname = 'Allow users update own profile') THEN
-    CREATE POLICY "Allow users update own profile" ON public.profiles FOR ALL TO authenticated USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'profiles' AND policyname = 'Allow public insert update profiles') THEN
+    CREATE POLICY "Allow public insert update profiles" ON public.profiles FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
   END IF;
 
   -- Groups policies
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'groups' AND policyname = 'Allow authenticated users full access to groups') THEN
-    CREATE POLICY "Allow authenticated users full access to groups" ON public.groups FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'groups' AND policyname = 'Allow public full access to groups') THEN
+    CREATE POLICY "Allow public full access to groups" ON public.groups FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
   END IF;
 
   -- Expenses policies
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'expenses' AND policyname = 'Allow authenticated users full access to expenses') THEN
-    CREATE POLICY "Allow authenticated users full access to expenses" ON public.expenses FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'expenses' AND policyname = 'Allow public full access to expenses') THEN
+    CREATE POLICY "Allow public full access to expenses" ON public.expenses FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
   END IF;
 
   -- Settlements policies
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'settlements' AND policyname = 'Allow authenticated users full access to settlements') THEN
-    CREATE POLICY "Allow authenticated users full access to settlements" ON public.settlements FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'settlements' AND policyname = 'Allow public full access to settlements') THEN
+    CREATE POLICY "Allow public full access to settlements" ON public.settlements FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
   END IF;
 END
 $$;

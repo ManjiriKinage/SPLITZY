@@ -59,6 +59,24 @@ class SupabaseEngine {
       if (session && session.user) {
         this.currentUser = session.user;
         await this.loadUserProfile(session.user.id);
+        const userObj = this.getUser();
+        if (typeof storage !== 'undefined' && userObj) {
+          storage.setLocalUserProfile(userObj);
+        }
+      } else {
+        // Try restoring local user cache if offline/session resuming
+        if (typeof storage !== 'undefined') {
+          const cachedUser = storage.getUserProfile();
+          if (cachedUser && cachedUser.email && cachedUser.name !== 'You') {
+            this.currentProfile = {
+              id: cachedUser.id || 'local-user',
+              name: cachedUser.name,
+              email: cachedUser.email,
+              upi_id: cachedUser.upiId || '',
+              color: cachedUser.color || '#4f46e5'
+            };
+          }
+        }
       }
 
       // Listen to auth state changes (login, logout, token refresh)
@@ -69,7 +87,11 @@ class SupabaseEngine {
           await this.loadUserProfile(newSession.user.id);
           this.status = 'connected';
           this.notifyStatusChange();
-          window.dispatchEvent(new CustomEvent('splitzy:auth-changed', { detail: { isAuthenticated: true, user: this.getUser() } }));
+          const userObj = this.getUser();
+          if (typeof storage !== 'undefined' && userObj) {
+            storage.setLocalUserProfile(userObj);
+          }
+          window.dispatchEvent(new CustomEvent('splitzy:auth-changed', { detail: { isAuthenticated: true, user: userObj } }));
           // Fetch data and attach realtime
           await this.syncAllDataFromSupabase();
           this.subscribeToRealtimeChanges();
@@ -79,6 +101,9 @@ class SupabaseEngine {
           this.status = 'disconnected';
           this.unsubscribeFromRealtime();
           this.notifyStatusChange();
+          if (typeof localStorage !== 'undefined') {
+            localStorage.removeItem('splitzy_local_user_v2');
+          }
           window.dispatchEvent(new CustomEvent('splitzy:auth-changed', { detail: { isAuthenticated: false, user: null } }));
         }
       });
@@ -484,6 +509,19 @@ class SupabaseEngine {
 
   formatExpenseFromDb(e) {
     if (!e) return null;
+    let itemized = [];
+    try {
+      itemized = typeof e.itemized_data === 'object' ? (e.itemized_data || []) : (JSON.parse(e.itemized_data || '[]'));
+    } catch (err) {
+      itemized = [];
+    }
+    let splitsObj = {};
+    try {
+      splitsObj = typeof e.splits === 'object' ? (e.splits || {}) : (JSON.parse(e.splits || '{}'));
+    } catch (err) {
+      splitsObj = {};
+    }
+
     return {
       id: e.id,
       groupId: e.group_id,
@@ -493,8 +531,9 @@ class SupabaseEngine {
       date: e.date,
       paidBy: e.paid_by,
       splitType: e.split_type || 'equal',
-      splits: typeof e.splits === 'object' ? e.splits : (JSON.parse(e.splits || '{}')),
-      itemizedData: typeof e.itemized_data === 'object' ? e.itemized_data : (JSON.parse(e.itemized_data || '[]')),
+      splits: splitsObj,
+      itemizedData: itemized,
+      itemizedBreakdown: Array.isArray(itemized) ? (itemized.length > 0 ? { items: itemized } : null) : itemized,
       notes: e.notes || '',
       createdAt: e.created_at,
       updatedAt: e.updated_at
@@ -502,6 +541,7 @@ class SupabaseEngine {
   }
 
   formatExpenseToDb(e) {
+    let itemData = e.itemizedData || (e.itemizedBreakdown ? (e.itemizedBreakdown.items || e.itemizedBreakdown) : []);
     return {
       id: e.id,
       group_id: e.groupId,
@@ -512,7 +552,7 @@ class SupabaseEngine {
       paid_by: e.paidBy,
       split_type: e.splitType || 'equal',
       splits: e.splits || {},
-      itemized_data: e.itemizedData || [],
+      itemized_data: itemData || [],
       notes: e.notes || '',
       updated_at: new Date().toISOString()
     };
