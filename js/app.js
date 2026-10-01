@@ -1027,7 +1027,7 @@ class SplitzyApp {
     // Recent Activity
     const recentActivityContainer = document.getElementById('dashboardRecentActivity');
     if (recentActivityContainer) {
-      const expenses = storage.getExpenses().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);
+      const expenses = storage.getExpensesForUser(currentUserName).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);
       if (expenses.length === 0) {
         recentActivityContainer.innerHTML = '<p class="text-muted text-center py-3 fw-semibold">No recent activity.</p>';
       } else {
@@ -1249,8 +1249,8 @@ class SplitzyApp {
 
   // --- 4. Activity History View ---
   renderActivityHistoryView(currentUserName) {
-    const expenses = storage.getExpenses().sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
-    const settlements = storage.getSettlements().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const expenses = storage.getExpensesForUser(currentUserName).sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
+    const settlements = storage.getSettlementsForUser(currentUserName).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     const container = document.getElementById('globalActivityLogContainer');
 
     if (container) {
@@ -1312,13 +1312,12 @@ class SplitzyApp {
     if (modalTitle) modalTitle.textContent = 'Add New Expense';
 
     const groupSelect = document.getElementById('expenseGroupSelect');
-    const groups = storage.getGroups();
     const currentUserName = storage.getUserName();
-    const userGroups = groups.filter(g => g.members.includes(currentUserName));
-    const activeGroups = userGroups.length > 0 ? userGroups : groups;
+    const userGroups = storage.getGroupsForUser(currentUserName);
+    const activeGroups = userGroups;
 
     if (activeGroups.length === 0) {
-      this.showToast('Please create a group first!', 'warning');
+      this.showToast('Please create or join a group first!', 'warning');
       this.openCreateGroupModal();
       return;
     }
@@ -1350,8 +1349,8 @@ class SplitzyApp {
     document.getElementById('expenseModalTitle').textContent = 'Edit Expense';
 
     const groupSelect = document.getElementById('expenseGroupSelect');
-    const groups = storage.getGroups();
-    groupSelect.innerHTML = groups.map(g => `
+    const userGroups = storage.getGroupsForUser(storage.getUserName());
+    groupSelect.innerHTML = userGroups.map(g => `
       <option value="${g.id}" ${g.id === expense.groupId ? 'selected' : ''}>${g.name}</option>
     `).join('');
 

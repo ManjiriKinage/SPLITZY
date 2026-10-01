@@ -122,17 +122,15 @@ class SettlementEngine {
    * Global financial overview for active user profile
    */
   static getUserGlobalSummary(userName) {
-    const groups = storage.getGroups();
+    const groups = storage.getGroupsForUser(userName);
     let totalOwedToYou = 0;
     let totalYouOwe = 0;
     const debts = [];
     const credits = [];
 
     groups.forEach(group => {
-      if (!group.members.includes(userName)) return;
-
       const balances = this.calculateGroupBalances(group.id);
-      const userBalance = balances[userName];
+      const userBalance = balances[userName] || balances['You'];
 
       if (userBalance) {
         if (userBalance.net > 0) totalOwedToYou += userBalance.net;

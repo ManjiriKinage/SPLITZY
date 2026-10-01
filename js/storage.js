@@ -382,8 +382,16 @@ class StorageManager {
     return this.expensesCache;
   }
 
+  getExpensesForUser(userName = null) {
+    const userGroups = this.getGroupsForUser(userName);
+    const userGroupIds = new Set(userGroups.map(g => (g.id || '').toLowerCase()));
+    return this.expensesCache.filter(e => e && e.groupId && userGroupIds.has(e.groupId.toLowerCase()));
+  }
+
   getExpensesByGroup(groupId) {
-    return this.expensesCache.filter(e => e.groupId === groupId);
+    if (!groupId) return [];
+    const cleanId = groupId.toLowerCase();
+    return this.expensesCache.filter(e => e.groupId && e.groupId.toLowerCase() === cleanId);
   }
 
   getExpenseById(id) {
@@ -423,8 +431,16 @@ class StorageManager {
     return this.settlementsCache;
   }
 
+  getSettlementsForUser(userName = null) {
+    const userGroups = this.getGroupsForUser(userName);
+    const userGroupIds = new Set(userGroups.map(g => (g.id || '').toLowerCase()));
+    return this.settlementsCache.filter(s => s && s.groupId && userGroupIds.has(s.groupId.toLowerCase()));
+  }
+
   getSettlementsByGroup(groupId) {
-    return this.settlementsCache.filter(s => s.groupId === groupId);
+    if (!groupId) return [];
+    const cleanId = groupId.toLowerCase();
+    return this.settlementsCache.filter(s => s.groupId && s.groupId.toLowerCase() === cleanId);
   }
 
   async saveSettlement(settlementData) {
