@@ -73,10 +73,10 @@ class AuthManager {
       if (result.success) {
         this.currentUser = result.user;
         if (typeof storage !== 'undefined') storage.setLocalUserProfile(result.user);
-        return result;
       }
+      return result;
     }
-    return { success: false, message: 'Invalid email or password.' };
+    return { success: false, message: 'Supabase Engine not available.' };
   }
 
   async register(name, email, password, upiId = '') {
@@ -85,10 +85,10 @@ class AuthManager {
       if (result.success) {
         this.currentUser = result.user;
         if (typeof storage !== 'undefined') storage.setLocalUserProfile(result.user);
-        return result;
       }
+      return result;
     }
-    return { success: false, message: 'Registration failed. Please check your credentials.' };
+    return { success: false, message: 'Supabase Engine not available.' };
   }
 
   async logout() {

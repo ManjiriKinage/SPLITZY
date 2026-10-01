@@ -112,10 +112,9 @@ class SupabaseEngine {
       this.notifyStatusChange();
       this.isInitialized = true;
 
-      if (this.currentUser) {
-        await this.syncAllDataFromSupabase();
-        this.subscribeToRealtimeChanges();
-      }
+      // Always sync cloud data and subscribe to Realtime WebSocket channel for multi-device sync
+      await this.syncAllDataFromSupabase();
+      this.subscribeToRealtimeChanges();
 
       console.log('⚡ [Splitzy Supabase] Connected to Supabase project:', config.url);
       return true;
@@ -428,7 +427,7 @@ class SupabaseEngine {
 
   // --- Database Synchronization (Pull from Cloud) ---
   async syncAllDataFromSupabase() {
-    if (!this.isAuthenticated()) return;
+    if (!this.client) return;
 
     try {
       const user = this.getUser();
@@ -467,7 +466,7 @@ class SupabaseEngine {
       const formattedSettlements = (settlementsData || []).map(s => this.formatSettlementFromDb(s));
       storage.setSettlementsCache(formattedSettlements);
 
-      console.log(`⚡ [Splitzy Supabase] Loaded ${formattedGroups.length} groups, ${formattedExpenses.length} expenses, ${formattedSettlements.length} settlements from Supabase.`);
+      console.log(`⚡ [Splitzy Supabase] Synced ${formattedGroups.length} groups, ${formattedExpenses.length} expenses, ${formattedSettlements.length} settlements from Supabase.`);
       window.dispatchEvent(new CustomEvent('splitzy:data-updated'));
     } catch (err) {
       console.warn('[Splitzy Supabase] Error syncing data from database:', err.message);
@@ -586,7 +585,7 @@ class SupabaseEngine {
 
   // --- Asynchronous DB CRUD for App Actions ---
   async saveGroupToDb(groupData) {
-    if (!this.isAuthenticated()) return null;
+    if (!this.client) return null;
     try {
       const row = this.formatGroupToDb(groupData);
       const { data, error } = await this.client
@@ -604,7 +603,7 @@ class SupabaseEngine {
   }
 
   async deleteGroupFromDb(groupId) {
-    if (!this.isAuthenticated()) return false;
+    if (!this.client) return false;
     try {
       const { error } = await this.client
         .from('groups')
@@ -620,7 +619,7 @@ class SupabaseEngine {
   }
 
   async saveExpenseToDb(expenseData) {
-    if (!this.isAuthenticated()) return null;
+    if (!this.client) return null;
     try {
       const row = this.formatExpenseToDb(expenseData);
       const { data, error } = await this.client
@@ -638,7 +637,7 @@ class SupabaseEngine {
   }
 
   async deleteExpenseFromDb(expenseId) {
-    if (!this.isAuthenticated()) return false;
+    if (!this.client) return false;
     try {
       const { error } = await this.client
         .from('expenses')
@@ -654,7 +653,7 @@ class SupabaseEngine {
   }
 
   async saveSettlementToDb(settleData) {
-    if (!this.isAuthenticated()) return null;
+    if (!this.client) return null;
     try {
       const row = this.formatSettlementToDb(settleData);
       const { data, error } = await this.client

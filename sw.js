@@ -2,7 +2,7 @@
  * SPLITZY 2.0 — Service Worker for Offline PWA Support (Supabase Edition)
  */
 
-const CACHE_NAME = 'splitzy-cache-v3.1';
+const CACHE_NAME = 'splitzy-cache-v3.2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

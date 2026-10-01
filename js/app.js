@@ -390,7 +390,7 @@ class SplitzyApp {
       const importResult = storage.importGroupPayload(payloadData);
       if (importResult.success && importResult.group) {
         const currentUserName = storage.getUserName();
-        storage.addMemberToGroup(importResult.group.id, currentUserName);
+        await storage.addMemberToGroup(importResult.group.id, currentUserName);
         
         const cleanUrl = window.location.pathname + '?group=' + encodeURIComponent(importResult.group.id);
         window.history.replaceState({}, document.title, cleanUrl);
@@ -417,7 +417,7 @@ class SplitzyApp {
 
       if (group) {
         const currentUserName = storage.getUserName();
-        storage.addMemberToGroup(group.id, currentUserName);
+        await storage.addMemberToGroup(group.id, currentUserName);
         const cleanUrl = window.location.pathname + '?group=' + encodeURIComponent(group.id);
         window.history.replaceState({}, document.title, cleanUrl);
         this.openGroupDetail(group.id);
@@ -1491,7 +1491,7 @@ class SplitzyApp {
       const importResult = storage.importGroupPayload(payload);
       if (importResult.success && importResult.group) {
         const currentUserName = storage.getUserName();
-        storage.addMemberToGroup(importResult.group.id, currentUserName);
+        await storage.addMemberToGroup(importResult.group.id, currentUserName);
         const modalEl = document.getElementById('joinGroupModal');
         bootstrap.Modal.getInstance(modalEl)?.hide();
         this.showToast(`🎉 Joined "${importResult.group.name}" with ${importResult.expenseCount || 0} expenses!`, 'success');
@@ -1519,7 +1519,7 @@ class SplitzyApp {
     }
 
     const currentUserName = storage.getUserName();
-    storage.addMemberToGroup(group.id, currentUserName);
+    await storage.addMemberToGroup(group.id, currentUserName);
 
     const modalEl = document.getElementById('joinGroupModal');
     bootstrap.Modal.getInstance(modalEl)?.hide();
@@ -1539,7 +1539,7 @@ class SplitzyApp {
     bootstrap.Modal.getOrCreateInstance(modalEl).show();
   }
 
-  saveAddMember() {
+  async saveAddMember() {
     const groupId = document.getElementById('addMemberGroupId').value;
     const name = document.getElementById('addMemberNameInput').value.trim();
     if (!name) {
@@ -1547,7 +1547,7 @@ class SplitzyApp {
       return;
     }
 
-    const success = storage.addMemberToGroup(groupId, name);
+    const success = await storage.addMemberToGroup(groupId, name);
     if (success) {
       const modalEl = document.getElementById('addMemberModal');
       bootstrap.Modal.getInstance(modalEl)?.hide();
