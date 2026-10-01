@@ -2,7 +2,8 @@
 -- SPLITZY 2.0 — SUPABASE POSTGRESQL DATABASE SCHEMA & REALTIME CONFIGURATION
 -- ==============================================================================
 -- Paste this entire SQL script into your Supabase SQL Editor and click "RUN".
--- It creates all required tables, indexes, triggers, and enables Realtime WebSockets.
+-- It creates all required tables, many-to-many group memberships, indexes,
+-- RLS policies, triggers, and enables Realtime WebSockets on all tables.
 -- ==============================================================================
 
 -- 1. Create Public User Profiles Table (Synced with Supabase Auth)
@@ -31,7 +32,19 @@ CREATE TABLE IF NOT EXISTS public.groups (
   updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 3. Create Expenses Table
+-- 3. Create Group Members Table (Many-to-Many mapping between Groups & Users)
+CREATE TABLE IF NOT EXISTS public.group_members (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  group_id TEXT NOT NULL REFERENCES public.groups(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  member_name TEXT NOT NULL,
+  email TEXT DEFAULT '',
+  role TEXT DEFAULT 'member', -- 'creator' | 'admin' | 'member'
+  joined_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+  CONSTRAINT uq_group_member UNIQUE(group_id, member_name)
+);
+
+-- 4. Create Expenses Table (Collaborative Multi-User Splitting)
 CREATE TABLE IF NOT EXISTS public.expenses (
   id TEXT PRIMARY KEY,
   group_id TEXT NOT NULL REFERENCES public.groups(id) ON DELETE CASCADE,
@@ -44,11 +57,12 @@ CREATE TABLE IF NOT EXISTS public.expenses (
   splits JSONB NOT NULL DEFAULT '{}'::jsonb,
   itemized_data JSONB DEFAULT '[]'::jsonb,
   notes TEXT DEFAULT '',
+  created_by_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 4. Create Settlements Table (Direct Recorded Transfers)
+-- 5. Create Settlements Table (Direct Recorded Transfers & Payments)
 CREATE TABLE IF NOT EXISTS public.settlements (
   id TEXT PRIMARY KEY,
   group_id TEXT NOT NULL REFERENCES public.groups(id) ON DELETE CASCADE,
@@ -57,22 +71,33 @@ CREATE TABLE IF NOT EXISTS public.settlements (
   amount NUMERIC(12, 2) NOT NULL,
   date DATE DEFAULT CURRENT_DATE NOT NULL,
   notes TEXT DEFAULT '',
+  recorded_by_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 5. Create Indexes for High-Performance Queries
+-- 6. Create Indexes for High-Performance Queries
 CREATE INDEX IF NOT EXISTS idx_groups_code ON public.groups(code);
+CREATE INDEX IF NOT EXISTS idx_group_members_group_id ON public.group_members(group_id);
+CREATE INDEX IF NOT EXISTS idx_group_members_user_id ON public.group_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_group_members_name ON public.group_members(member_name);
 CREATE INDEX IF NOT EXISTS idx_expenses_group_id ON public.expenses(group_id);
 CREATE INDEX IF NOT EXISTS idx_settlements_group_id ON public.settlements(group_id);
 
--- 6. Enable Row-Level Security (RLS) on all tables
+-- 7. Configure Full Replica Identity for Realtime UPDATE/DELETE payloads
+ALTER TABLE public.profiles REPLICA IDENTITY FULL;
+ALTER TABLE public.groups REPLICA IDENTITY FULL;
+ALTER TABLE public.group_members REPLICA IDENTITY FULL;
+ALTER TABLE public.expenses REPLICA IDENTITY FULL;
+ALTER TABLE public.settlements REPLICA IDENTITY FULL;
+
+-- 8. Enable Row-Level Security (RLS) on all tables
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.groups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.group_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.settlements ENABLE ROW LEVEL SECURITY;
 
--- 7. Define RLS Policies for Authenticated and Anon Users (Read/Write access)
--- (Allows logged-in users and invited members to collaborate in real-time on groups, expenses, and settlements)
+-- 9. Define RLS Policies for Authenticated and Anon Users (Read/Write access)
 DO $$
 BEGIN
   -- Profiles policies
@@ -88,6 +113,11 @@ BEGIN
     CREATE POLICY "Allow public full access to groups" ON public.groups FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
   END IF;
 
+  -- Group Members policies
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'group_members' AND policyname = 'Allow public full access to group_members') THEN
+    CREATE POLICY "Allow public full access to group_members" ON public.group_members FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
+  END IF;
+
   -- Expenses policies
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'expenses' AND policyname = 'Allow public full access to expenses') THEN
     CREATE POLICY "Allow public full access to expenses" ON public.expenses FOR ALL TO authenticated, anon USING (true) WITH CHECK (true);
@@ -100,7 +130,7 @@ BEGIN
 END
 $$;
 
--- 8. Enable Realtime WebSocket Broadcasting on all tables (Idempotent)
+-- 10. Enable Realtime WebSocket Broadcasting on all tables (Idempotent)
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -115,6 +145,13 @@ BEGIN
     WHERE pubname = 'supabase_realtime' AND tablename = 'groups'
   ) THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.groups;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND tablename = 'group_members'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.group_members;
   END IF;
 
   IF NOT EXISTS (

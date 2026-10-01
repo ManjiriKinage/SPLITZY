@@ -280,9 +280,32 @@ class StorageManager {
     return this.groupsCache;
   }
 
+  getGroupsForUser(userName = null) {
+    const targetUser = (userName || this.getUserName() || 'You').trim().toLowerCase();
+    const userProfile = this.getUserProfile();
+    const userId = userProfile?.id;
+
+    return this.groupsCache.filter(g => {
+      if (!g) return false;
+      // 1. Check if user is in members array (case insensitive or 'You')
+      const inMembers = Array.isArray(g.members) && g.members.some(m => {
+        const mClean = (m || '').trim().toLowerCase();
+        return mClean === targetUser || mClean === 'you';
+      });
+      if (inMembers) return true;
+
+      // 2. Check if created by user
+      if (g.createdBy && g.createdBy.trim().toLowerCase() === targetUser) return true;
+      if (userId && g.createdById && g.createdById === userId) return true;
+
+      return false;
+    });
+  }
+
   getGroupById(groupId) {
     if (!groupId) return null;
-    return this.groupsCache.find(g => g.id === groupId || g.code === groupId.toUpperCase()) || null;
+    const clean = groupId.trim().toLowerCase();
+    return this.groupsCache.find(g => g.id.toLowerCase() === clean || (g.code && g.code.toLowerCase() === clean)) || null;
   }
 
   async saveGroup(groupData) {
@@ -297,6 +320,7 @@ class StorageManager {
       this.upsertGroupInCache(formatted);
     } else {
       const code = StorageManager.generateGroupCode();
+      const initialMembers = Array.from(new Set([currentUser, ...(groupData.members || [])])).filter(Boolean);
       formatted = {
         id: code.toLowerCase(),
         code: code,
@@ -304,8 +328,9 @@ class StorageManager {
         category: groupData.category || 'General',
         icon: groupData.icon || 'fa-users',
         color: groupData.color || '#4f46e5',
-        members: Array.from(new Set([currentUser, ...(groupData.members || [])])),
+        members: initialMembers,
         createdBy: currentUser,
+        createdById: this.getUserProfile()?.id || null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -322,7 +347,7 @@ class StorageManager {
     return formatted;
   }
 
-  async addMemberToGroup(groupId, memberName) {
+  async addMemberToGroup(groupId, memberName, userObj = null) {
     const trimmed = (memberName || '').trim();
     if (!trimmed) return false;
 
@@ -336,7 +361,8 @@ class StorageManager {
       window.dispatchEvent(new CustomEvent('splitzy:data-updated'));
 
       if (typeof supabaseEngine !== 'undefined' && supabaseEngine.isConfigured()) {
-        await supabaseEngine.saveGroupToDb(group);
+        const u = userObj || (trimmed === this.getUserName() ? this.getUserProfile() : null);
+        await supabaseEngine.addMemberToGroupInDb(group.id, trimmed, u?.id || null, u?.email || '');
       }
     }
     return true;

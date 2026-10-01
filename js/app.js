@@ -385,16 +385,25 @@ class SplitzyApp {
       if (!payloadData) payloadData = urlParams.get('data') || urlParams.get('payload') || urlParams.get('sync');
     }
 
+    if (!joinCode && !payloadData) {
+      // Check if there was a saved pending join from before authentication
+      joinCode = localStorage.getItem('splitzy_pending_join');
+    }
+
+    if (!joinCode && !payloadData) return;
+
     // 3. If portable data payload is present, import & sync group immediately!
     if (payloadData) {
       const importResult = storage.importGroupPayload(payloadData);
       if (importResult.success && importResult.group) {
-        const currentUserName = storage.getUserName();
-        await storage.addMemberToGroup(importResult.group.id, currentUserName);
+        const user = typeof authManager !== 'undefined' ? authManager.getUser() : storage.getUserProfile();
+        const currentUserName = user?.name || storage.getUserName();
+        await storage.addMemberToGroup(importResult.group.id, currentUserName, user);
         
         const cleanUrl = window.location.pathname + '?group=' + encodeURIComponent(importResult.group.id);
         window.history.replaceState({}, document.title, cleanUrl);
 
+        localStorage.removeItem('splitzy_pending_join');
         this.openGroupDetail(importResult.group.id);
         this.showToast(`🎉 Joined "${importResult.group.name}" with ${importResult.expenseCount || 0} expenses!`, 'success');
         return;
@@ -403,29 +412,51 @@ class SplitzyApp {
 
     // 4. If join code was provided
     if (joinCode) {
-      let group = storage.getGroupById(joinCode);
-      
-      // If not present in local cache, query Supabase in real time
-      if (!group && typeof supabaseEngine !== 'undefined' && supabaseEngine.isConfigured()) {
-        this.showToast(`Fetching group "${joinCode}" from Cloud... ⚡`, 'info');
-        const remoteResult = await supabaseEngine.findGroupByCode(joinCode);
-        if (remoteResult) {
-          group = remoteResult;
+      const isAuth = typeof authManager !== 'undefined' && authManager.isAuthenticated();
+      if (!isAuth) {
+        localStorage.setItem('splitzy_pending_join', joinCode);
+        this.showToast(`Sign in or register to join group ${joinCode}! 🚀`, 'info');
+        this.openAuthModal('signin', true);
+        return;
+      }
+
+      const user = authManager.getUser();
+      const currentUserName = user?.name || storage.getUserName();
+
+      this.showToast(`Joining group "${joinCode}"... ⚡`, 'info');
+      let group = null;
+
+      if (typeof supabaseEngine !== 'undefined' && supabaseEngine.isConfigured()) {
+        group = await supabaseEngine.joinGroup(joinCode, user);
+        if (group) {
           storage.upsertGroupInCache(group);
         }
       }
 
+      if (!group) {
+        group = storage.getGroupById(joinCode);
+        if (group) {
+          await storage.addMemberToGroup(group.id, currentUserName, user);
+        }
+      }
+
       if (group) {
-        const currentUserName = storage.getUserName();
-        await storage.addMemberToGroup(group.id, currentUserName);
+        localStorage.removeItem('splitzy_pending_join');
         const cleanUrl = window.location.pathname + '?group=' + encodeURIComponent(group.id);
         window.history.replaceState({}, document.title, cleanUrl);
         this.openGroupDetail(group.id);
-        this.showToast(`Joined group: ${group.name}! 🚀`, 'success');
+        this.showToast(`🎉 You've successfully joined "${group.name}"!`, 'success');
       } else {
-        this.showToast(`Group code "${joinCode}" not found. Paste the invite link to sync!`, 'warning');
+        this.showToast(`Group code "${joinCode}" not found. Please verify the code or QR link.`, 'warning');
         this.openJoinGroupModal(joinCode);
       }
+    }
+  }
+
+  async checkPendingJoinAfterAuth() {
+    const pendingCode = localStorage.getItem('splitzy_pending_join');
+    if (pendingCode) {
+      await this.handleUrlJoinParameters();
     }
   }
 
@@ -441,11 +472,12 @@ class SplitzyApp {
     });
 
     // Supabase Auth & Profile updates
-    window.addEventListener('splitzy:auth-changed', (e) => {
+    window.addEventListener('splitzy:auth-changed', async (e) => {
       this.updateUserProfileUI(e.detail.user, e.detail.isAuthenticated);
       if (e.detail.isAuthenticated) {
         const modalEl = document.getElementById('authModal');
         bootstrap.Modal.getInstance(modalEl)?.hide();
+        await this.checkPendingJoinAfterAuth();
       } else {
         this.openAuthModal('signin', true);
       }
@@ -757,6 +789,67 @@ class SplitzyApp {
         </div>
       `).join('');
     }
+
+    // Render "My Expense Groups" inside Profile View
+    const profileGroupsContainer = document.getElementById('profileMyGroupsList');
+    if (profileGroupsContainer) {
+      const userGroups = storage.getGroupsForUser(name);
+      if (userGroups.length === 0) {
+        profileGroupsContainer.innerHTML = `
+          <div class="col-12 text-center py-4 text-muted">
+            <i class="fa-solid fa-users fs-2 mb-2 opacity-50"></i>
+            <p class="mb-0 fw-semibold">You are not a member of any expense groups yet.</p>
+          </div>
+        `;
+      } else {
+        profileGroupsContainer.innerHTML = userGroups.map(g => {
+          const balances = SettlementEngine.calculateGroupBalances(g.id);
+          const userBalance = balances[name] || balances['You'] || { net: 0, totalPaid: 0, totalShare: 0 };
+          const expenses = storage.getExpensesByGroup(g.id);
+          const totalSpent = expenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+
+          let balanceBadge = '';
+          if (userBalance.net > 0) {
+            balanceBadge = `<span class="badge-custom badge-credit"><i class="fa-solid fa-arrow-down-left"></i> +₹${userBalance.net.toLocaleString('en-IN')}</span>`;
+          } else if (userBalance.net < 0) {
+            balanceBadge = `<span class="badge-custom badge-debt"><i class="fa-solid fa-arrow-up-right"></i> -₹${Math.abs(userBalance.net).toLocaleString('en-IN')}</span>`;
+          } else {
+            balanceBadge = `<span class="badge-custom badge-settled"><i class="fa-solid fa-check"></i> Settled</span>`;
+          }
+
+          return `
+            <div class="col-12 col-md-6 mb-2">
+              <div class="p-3 rounded-3 border h-100 d-flex flex-column justify-content-between" style="background: var(--bg-card); border-color: var(--card-border) !important;">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <div class="d-flex align-items-center gap-2">
+                    <div class="group-avatar" style="width: 38px; height: 38px; font-size: 1rem; background: ${g.color || '#4f46e5'}18; color: ${g.color || '#4f46e5'}">
+                      ${GroupsManager.renderGroupIcon(g.icon)}
+                    </div>
+                    <div>
+                      <h6 class="mb-0 text-main fw-bold text-truncate" style="max-width: 140px;">${g.name}</h6>
+                      <small class="text-muted font-monospace">${g.code || g.id}</small>
+                    </div>
+                  </div>
+                  <div>${balanceBadge}</div>
+                </div>
+
+                <div class="d-flex align-items-center justify-content-between pt-2 border-top mt-2" style="border-color: var(--card-border) !important;">
+                  <small class="text-muted fw-semibold">${g.members.length} members • ₹${totalSpent.toLocaleString('en-IN')} spent</small>
+                  <div class="d-flex gap-1">
+                    <button class="btn btn-sm btn-splitzy-secondary py-1 px-2" onclick="App.openShareGroupModal('${g.id}')" title="Invite Friends">
+                      <i class="fa-solid fa-share-nodes text-primary"></i>
+                    </button>
+                    <button class="btn btn-sm btn-splitzy-primary py-1 px-2" onclick="App.openGroupDetail('${g.id}')">
+                      Open <i class="fa-solid fa-arrow-right ms-1"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
   }
 
   selectPageAvatarColor(color) {
@@ -823,7 +916,7 @@ class SplitzyApp {
 
   renderMetricsRibbon(currentUserName) {
     const summary = SettlementEngine.getUserGlobalSummary(currentUserName);
-    const groups = storage.getGroups().filter(g => g.members.includes(currentUserName));
+    const userGroups = storage.getGroupsForUser(currentUserName);
 
     const totalBalanceEl = document.getElementById('metricTotalBalance');
     const owedToYouEl = document.getElementById('metricOwedToYou');
@@ -837,13 +930,12 @@ class SplitzyApp {
     }
     if (owedToYouEl) owedToYouEl.textContent = `₹${summary.totalOwedToYou.toLocaleString('en-IN')}`;
     if (youOweEl) youOweEl.textContent = `₹${summary.totalYouOwe.toLocaleString('en-IN')}`;
-    if (totalGroupsEl) totalGroupsEl.textContent = groups.length;
+    if (totalGroupsEl) totalGroupsEl.textContent = userGroups.length;
   }
 
   // --- 1. Dashboard View ---
   renderDashboardView(currentUserName) {
-    const groups = storage.getGroups();
-    const userGroups = groups.filter(g => g.members.includes(currentUserName));
+    const userGroups = storage.getGroupsForUser(currentUserName);
     const container = document.getElementById('dashboardGroupsContainer');
 
     if (container) {
@@ -853,13 +945,13 @@ class SplitzyApp {
             <div class="splitzy-card p-4 p-md-5">
               <i class="fa-solid fa-users fs-1 text-muted mb-3"></i>
               <h4 class="text-main fw-bold">No expense groups yet</h4>
-              <p class="text-muted">Create a new group or join your friends using a Group Code.</p>
+              <p class="text-muted">Create a new group or join your friends using an Invite Link or QR Code.</p>
               <div class="d-flex justify-content-center gap-2 mt-3 flex-wrap">
                 <button class="btn btn-splitzy-primary" onclick="App.openCreateGroupModal()">
                   <i class="fa-solid fa-plus me-1"></i> Create Group
                 </button>
                 <button class="btn btn-splitzy-secondary" onclick="App.openJoinGroupModal()">
-                  <i class="fa-solid fa-key me-1"></i> Join by Code
+                  <i class="fa-solid fa-qrcode me-1 text-warning"></i> Join via QR / Code
                 </button>
               </div>
             </div>
@@ -1438,10 +1530,18 @@ class SplitzyApp {
     this.openGroupDetail(group.id);
   }
 
-  // Join Group / Import Data Modal
+  // --- Join Group / Live QR Scanner ---
   openJoinGroupModal(prefill = '') {
     const input = document.getElementById('joinGroupCodeInput');
     if (input) input.value = prefill || '';
+    
+    // Switch to Code Tab by default
+    const codeTabBtn = document.getElementById('tab-join-code-btn');
+    if (codeTabBtn && typeof bootstrap !== 'undefined') {
+      bootstrap.Tab.getOrCreateInstance(codeTabBtn).show();
+    }
+    this.stopQrScanner();
+
     const modalEl = document.getElementById('joinGroupModal');
     bootstrap.Modal.getOrCreateInstance(modalEl).show();
   }
@@ -1459,9 +1559,77 @@ class SplitzyApp {
     }
   }
 
-  async joinGroupByCode() {
+  async startQrScanner() {
+    const qrContainer = document.getElementById('qr-reader');
+    if (!qrContainer) return;
+    qrContainer.innerHTML = '';
+    const resultsEl = document.getElementById('qr-reader-results');
+    if (resultsEl) resultsEl.textContent = 'Starting camera scanner...';
+
+    if (typeof Html5Qrcode === 'undefined') {
+      if (resultsEl) resultsEl.innerHTML = '<span class="text-warning">QR Scanner library loading... please wait.</span>';
+      return;
+    }
+
+    try {
+      if (this.html5QrCode) {
+        try { await this.html5QrCode.stop(); } catch (e) {}
+      }
+
+      this.html5QrCode = new Html5Qrcode("qr-reader");
+      const config = { fps: 10, qrbox: { width: 220, height: 220 } };
+
+      await this.html5QrCode.start(
+        { facingMode: "environment" },
+        config,
+        (decodedText) => {
+          this.handleQrScanSuccess(decodedText);
+        },
+        (errorMessage) => {
+          // ignore scan frame errors
+        }
+      );
+      if (resultsEl) resultsEl.innerHTML = '<span class="text-success"><i class="fa-solid fa-circle-check me-1"></i> Camera ready. Point at Splitzy QR Code.</span>';
+    } catch (err) {
+      console.warn('[Splitzy QR] Camera start error:', err);
+      if (resultsEl) resultsEl.innerHTML = '<span class="text-danger"><i class="fa-solid fa-triangle-exclamation me-1"></i> Camera permission needed or unavailable. You can enter the code manually.</span>';
+    }
+  }
+
+  async stopQrScanner() {
+    if (this.html5QrCode) {
+      try {
+        await this.html5QrCode.stop();
+        this.html5QrCode.clear();
+      } catch (e) {}
+      this.html5QrCode = null;
+    }
+    const resultsEl = document.getElementById('qr-reader-results');
+    if (resultsEl) resultsEl.textContent = '';
+  }
+
+  async restartQrScanner() {
+    await this.stopQrScanner();
+    await this.startQrScanner();
+  }
+
+  async handleQrScanSuccess(decodedText) {
+    if (!decodedText) return;
+    this.showToast('🎉 QR Code detected!', 'success');
+    await this.stopQrScanner();
+
+    const modalEl = document.getElementById('joinGroupModal');
+    bootstrap.Modal.getInstance(modalEl)?.hide();
+
     const input = document.getElementById('joinGroupCodeInput');
-    const rawVal = (input?.value || '').trim();
+    if (input) input.value = decodedText;
+
+    await this.joinGroupByCode(decodedText);
+  }
+
+  async joinGroupByCode(customInput = null) {
+    const input = document.getElementById('joinGroupCodeInput');
+    const rawVal = (customInput || input?.value || '').trim();
     if (!rawVal) {
       this.showToast('Please enter a Group Code or Invite Link', 'warning');
       return;
@@ -1473,7 +1641,7 @@ class SplitzyApp {
     // Check if input is a URL or contains data payload parameter
     if (rawVal.includes('data=')) {
       try {
-        const dummyBase = 'https://splitzy.app/';
+        const dummyBase = 'https://splitzy.vercel.app/';
         const parsedUrl = new URL(rawVal.startsWith('http') ? rawVal : `${dummyBase}${rawVal}`);
         const hashParams = new URLSearchParams(parsedUrl.hash.replace(/^#/, ''));
         payload = hashParams.get('data') || parsedUrl.searchParams.get('data');
@@ -1482,16 +1650,35 @@ class SplitzyApp {
         const match = rawVal.match(/data=([^&]+)/);
         if (match) payload = decodeURIComponent(match[1]);
       }
+    } else if (rawVal.startsWith('http')) {
+      try {
+        const parsedUrl = new URL(rawVal);
+        code = parsedUrl.searchParams.get('join') || parsedUrl.searchParams.get('group') || new URLSearchParams(parsedUrl.hash.replace(/^#/, '')).get('join') || code;
+      } catch (e) {}
     } else if (rawVal.length > 50 && !rawVal.startsWith('http')) {
-      // Direct raw or compressed string
       payload = rawVal;
     }
+
+    // Clean code formatting (e.g. GRP-XXXX)
+    code = code.replace(/^[?#]join=/, '').replace(/^join=/, '').trim();
+
+    const isAuth = typeof authManager !== 'undefined' && authManager.isAuthenticated();
+    if (!isAuth) {
+      localStorage.setItem('splitzy_pending_join', code);
+      this.showToast(`Please sign in or register to join group ${code}!`, 'info');
+      const modalEl = document.getElementById('joinGroupModal');
+      bootstrap.Modal.getInstance(modalEl)?.hide();
+      this.openAuthModal('signin', true);
+      return;
+    }
+
+    const user = authManager.getUser();
+    const currentUserName = user?.name || storage.getUserName();
 
     if (payload) {
       const importResult = storage.importGroupPayload(payload);
       if (importResult.success && importResult.group) {
-        const currentUserName = storage.getUserName();
-        await storage.addMemberToGroup(importResult.group.id, currentUserName);
+        await storage.addMemberToGroup(importResult.group.id, currentUserName, user);
         const modalEl = document.getElementById('joinGroupModal');
         bootstrap.Modal.getInstance(modalEl)?.hide();
         this.showToast(`🎉 Joined "${importResult.group.name}" with ${importResult.expenseCount || 0} expenses!`, 'success');
@@ -1500,16 +1687,20 @@ class SplitzyApp {
       }
     }
 
-    // Try finding by local code
-    let group = storage.getGroupById(code);
+    this.showToast(`Joining group "${code}"... ⚡`, 'info');
+    let group = null;
 
-    // If not in local cache, query Supabase in real time
-    if (!group && typeof supabaseEngine !== 'undefined' && supabaseEngine.isConfigured()) {
-      this.showToast(`Searching Supabase for "${code}"... ⚡`, 'info');
-      const remoteResult = await supabaseEngine.findGroupByCode(code);
-      if (remoteResult) {
-        group = remoteResult;
+    if (typeof supabaseEngine !== 'undefined' && supabaseEngine.isConfigured()) {
+      group = await supabaseEngine.joinGroup(code, user);
+      if (group) {
         storage.upsertGroupInCache(group);
+      }
+    }
+
+    if (!group) {
+      group = storage.getGroupById(code);
+      if (group) {
+        await storage.addMemberToGroup(group.id, currentUserName, user);
       }
     }
 
@@ -1518,13 +1709,10 @@ class SplitzyApp {
       return;
     }
 
-    const currentUserName = storage.getUserName();
-    await storage.addMemberToGroup(group.id, currentUserName);
-
     const modalEl = document.getElementById('joinGroupModal');
     bootstrap.Modal.getInstance(modalEl)?.hide();
 
-    this.showToast(`Joined "${group.name}"!`, 'success');
+    this.showToast(`🎉 Joined "${group.name}"!`, 'success');
     this.openGroupDetail(group.id);
   }
 

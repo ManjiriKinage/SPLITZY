@@ -3,8 +3,8 @@
  * 
  * Provides:
  * - Direct Supabase Auth (Sign Up, Sign In, Session Tokens, Profile Sync)
- * - PostgreSQL CRUD for Groups, Expenses, Settlements, and Profiles
- * - Supabase Realtime Channels (WebSockets / Postgres CDC) for live multi-user sync
+ * - PostgreSQL CRUD for Groups, Group Members (Many-to-Many), Expenses, Settlements, Profiles
+ * - Supabase Realtime Channels (WebSockets / Postgres CDC) for instant multi-device sync
  */
 
 const SUPABASE_STORAGE_KEY = 'splitzy_supabase_custom_config_v2';
@@ -112,7 +112,7 @@ class SupabaseEngine {
       this.notifyStatusChange();
       this.isInitialized = true;
 
-      // Always sync cloud data and subscribe to Realtime WebSocket channel for multi-device sync
+      // Sync cloud data & attach Realtime WebSocket channel for multi-device sync
       await this.syncAllDataFromSupabase();
       this.subscribeToRealtimeChanges();
 
@@ -268,6 +268,8 @@ class SupabaseEngine {
           updated_at: new Date().toISOString()
         });
         await this.loadUserProfile(data.user.id);
+        await this.syncAllDataFromSupabase();
+        this.subscribeToRealtimeChanges();
       }
 
       return {
@@ -329,27 +331,35 @@ class SupabaseEngine {
     return { success: true };
   }
 
-  // --- Realtime WebSocket Subscriptions ---
+  // --- Realtime WebSocket Subscriptions (Live Cross-Device Sync) ---
   subscribeToRealtimeChanges() {
     if (!this.client || this.realtimeChannel) return;
 
     try {
-      console.log('⚡ [Splitzy Realtime] Subscribing to Supabase Realtime changes...');
+      console.log('⚡ [Splitzy Realtime] Subscribing to Supabase Realtime channels...');
       this.realtimeChannel = this.client
-        .channel('splitzy-realtime-channel')
+        .channel('splitzy-realtime-global')
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'groups' },
           async (payload) => {
-            console.log('⚡ [Realtime Group Change]:', payload.eventType);
+            console.log('⚡ [Realtime Group]:', payload.eventType);
             await this.handleRemoteGroupChange(payload);
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'group_members' },
+          async (payload) => {
+            console.log('⚡ [Realtime Group Member]:', payload.eventType);
+            await this.handleRemoteMemberChange(payload);
           }
         )
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'expenses' },
           async (payload) => {
-            console.log('⚡ [Realtime Expense Change]:', payload.eventType);
+            console.log('⚡ [Realtime Expense]:', payload.eventType);
             await this.handleRemoteExpenseChange(payload);
           }
         )
@@ -357,7 +367,7 @@ class SupabaseEngine {
           'postgres_changes',
           { event: '*', schema: 'public', table: 'settlements' },
           async (payload) => {
-            console.log('⚡ [Realtime Settlement Change]:', payload.eventType);
+            console.log('⚡ [Realtime Settlement]:', payload.eventType);
             await this.handleRemoteSettlementChange(payload);
           }
         )
@@ -372,7 +382,7 @@ class SupabaseEngine {
           }
         )
         .subscribe((status) => {
-          console.log('[Splitzy Realtime] Channel status:', status);
+          console.log('[Splitzy Realtime] Status:', status);
         });
     } catch (e) {
       console.warn('[Splitzy Realtime] Failed to subscribe to realtime:', e);
@@ -397,6 +407,26 @@ class SupabaseEngine {
     } else if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
       const grp = this.formatGroupFromDb(payload.new);
       storage.upsertGroupInCache(grp);
+    }
+    window.dispatchEvent(new CustomEvent('splitzy:data-updated'));
+  }
+
+  async handleRemoteMemberChange(payload) {
+    if (typeof storage === 'undefined') return;
+    if (payload.new && payload.new.group_id) {
+      const group = storage.getGroupById(payload.new.group_id);
+      if (group) {
+        if (!group.members.includes(payload.new.member_name)) {
+          group.members.push(payload.new.member_name);
+          storage.upsertGroupInCache(group);
+        }
+      } else {
+        // Fetch new group if user was added to a new group
+        const { data } = await this.client.from('groups').select('*').eq('id', payload.new.group_id).maybeSingle();
+        if (data) {
+          storage.upsertGroupInCache(this.formatGroupFromDb(data));
+        }
+      }
     }
     window.dispatchEvent(new CustomEvent('splitzy:data-updated'));
   }
@@ -432,6 +462,7 @@ class SupabaseEngine {
     try {
       const user = this.getUser();
       const userName = user ? user.name : '';
+      const userId = user ? user.id : null;
 
       // 1. Fetch Groups
       const { data: groupsData, error: grpError } = await this.client
@@ -441,10 +472,39 @@ class SupabaseEngine {
 
       if (grpError) throw grpError;
 
-      const formattedGroups = (groupsData || []).map(g => this.formatGroupFromDb(g));
+      // 2. Fetch Group Members (Many-to-Many mapping)
+      let membersMapByGroupId = {};
+      try {
+        const { data: memberRows } = await this.client
+          .from('group_members')
+          .select('*');
+
+        if (memberRows && Array.isArray(memberRows)) {
+          memberRows.forEach(m => {
+            if (!membersMapByGroupId[m.group_id]) membersMapByGroupId[m.group_id] = [];
+            membersMapByGroupId[m.group_id].push(m.member_name);
+
+            // Auto link current user if name matches and user_id is missing
+            if (userId && m.member_name.toLowerCase() === userName.toLowerCase() && !m.user_id) {
+              this.client.from('group_members').update({ user_id: userId, email: user.email }).eq('id', m.id).then();
+            }
+          });
+        }
+      } catch (err) {
+        console.warn('[Splitzy Supabase] group_members table optional query:', err);
+      }
+
+      const formattedGroups = (groupsData || []).map(g => {
+        const formatted = this.formatGroupFromDb(g);
+        if (membersMapByGroupId[g.id] && membersMapByGroupId[g.id].length > 0) {
+          // Merge unique member names
+          formatted.members = Array.from(new Set([...formatted.members, ...membersMapByGroupId[g.id]]));
+        }
+        return formatted;
+      });
       storage.setGroupsCache(formattedGroups);
 
-      // 2. Fetch Expenses
+      // 3. Fetch Expenses
       const { data: expensesData, error: expError } = await this.client
         .from('expenses')
         .select('*')
@@ -455,7 +515,7 @@ class SupabaseEngine {
       const formattedExpenses = (expensesData || []).map(e => this.formatExpenseFromDb(e));
       storage.setExpensesCache(formattedExpenses);
 
-      // 3. Fetch Settlements
+      // 4. Fetch Settlements
       const { data: settlementsData, error: stlError } = await this.client
         .from('settlements')
         .select('*')
@@ -476,6 +536,12 @@ class SupabaseEngine {
   // --- Format Converters (Postgres snake_case <-> App camelCase) ---
   formatGroupFromDb(g) {
     if (!g) return null;
+    let memberList = [];
+    if (Array.isArray(g.members)) {
+      memberList = g.members;
+    } else if (typeof g.members === 'string') {
+      try { memberList = JSON.parse(g.members); } catch (e) { memberList = []; }
+    }
     return {
       id: g.id,
       code: g.code,
@@ -483,7 +549,7 @@ class SupabaseEngine {
       category: g.category || 'General',
       icon: g.icon || 'fa-users',
       color: g.color || '#4f46e5',
-      members: Array.isArray(g.members) ? g.members : (typeof g.members === 'string' ? JSON.parse(g.members) : []),
+      members: memberList,
       createdBy: g.created_by || '',
       createdById: g.created_by_id || null,
       createdAt: g.created_at,
@@ -534,6 +600,7 @@ class SupabaseEngine {
       itemizedData: itemized,
       itemizedBreakdown: Array.isArray(itemized) ? (itemized.length > 0 ? { items: itemized } : null) : itemized,
       notes: e.notes || '',
+      createdById: e.created_by_id || null,
       createdAt: e.created_at,
       updatedAt: e.updated_at
     };
@@ -553,6 +620,7 @@ class SupabaseEngine {
       splits: e.splits || {},
       itemized_data: itemData || [],
       notes: e.notes || '',
+      created_by_id: this.currentUser?.id || null,
       updated_at: new Date().toISOString()
     };
   }
@@ -567,6 +635,7 @@ class SupabaseEngine {
       amount: parseFloat(s.amount) || 0,
       date: s.date,
       notes: s.notes || '',
+      recordedById: s.recorded_by_id || null,
       createdAt: s.created_at
     };
   }
@@ -579,7 +648,8 @@ class SupabaseEngine {
       receiver: s.receiver,
       amount: parseFloat(s.amount) || 0,
       date: s.date || new Date().toISOString().split('T')[0],
-      notes: s.notes || ''
+      notes: s.notes || '',
+      recorded_by_id: this.currentUser?.id || null
     };
   }
 
@@ -595,9 +665,84 @@ class SupabaseEngine {
         .single();
 
       if (error) throw error;
+
+      // Sync members into group_members many-to-many table
+      if (groupData.members && Array.isArray(groupData.members)) {
+        const user = this.getUser();
+        for (const memberName of groupData.members) {
+          const isCurrentUser = user && (memberName.toLowerCase() === user.name.toLowerCase() || memberName === 'You');
+          try {
+            await this.client.from('group_members').upsert({
+              group_id: row.id,
+              member_name: memberName,
+              user_id: isCurrentUser ? user.id : null,
+              email: isCurrentUser ? user.email : '',
+              role: isCurrentUser ? 'creator' : 'member'
+            }, { onConflict: 'group_id,member_name' });
+          } catch (e) {}
+        }
+      }
+
       return this.formatGroupFromDb(data);
     } catch (err) {
       console.error('[Splitzy Supabase] Error saving group:', err);
+      return null;
+    }
+  }
+
+  async addMemberToGroupInDb(groupId, memberName, userId = null, email = '') {
+    if (!this.client || !groupId || !memberName) return false;
+    try {
+      // 1. Add to group_members table
+      await this.client.from('group_members').upsert({
+        group_id: groupId,
+        member_name: memberName,
+        user_id: userId,
+        email: email || '',
+        role: 'member'
+      }, { onConflict: 'group_id,member_name' });
+
+      // 2. Update group's members array in groups table
+      const { data: grp } = await this.client.from('groups').select('*').eq('id', groupId).maybeSingle();
+      if (grp) {
+        let members = Array.isArray(grp.members) ? grp.members : [];
+        if (!members.includes(memberName)) {
+          members.push(memberName);
+          await this.client.from('groups').update({ members: members, updated_at: new Date().toISOString() }).eq('id', groupId);
+        }
+      }
+      return true;
+    } catch (err) {
+      console.warn('[Splitzy Supabase] Error adding member to db:', err);
+      return false;
+    }
+  }
+
+  async joinGroup(codeOrId, userObj) {
+    if (!this.client || !codeOrId) return null;
+    try {
+      const clean = codeOrId.trim();
+      const { data: grp, error } = await this.client
+        .from('groups')
+        .select('*')
+        .or(`id.eq.${clean.toLowerCase()},code.eq.${clean.toUpperCase()}`)
+        .maybeSingle();
+
+      if (error || !grp) return null;
+
+      const userName = userObj ? userObj.name : 'You';
+      const userId = userObj ? userObj.id : null;
+      const userEmail = userObj ? userObj.email : '';
+
+      await this.addMemberToGroupInDb(grp.id, userName, userId, userEmail);
+
+      const formatted = this.formatGroupFromDb(grp);
+      if (!formatted.members.includes(userName)) {
+        formatted.members.push(userName);
+      }
+      return formatted;
+    } catch (e) {
+      console.warn('[Splitzy Supabase] Join group error:', e);
       return null;
     }
   }
@@ -673,11 +818,11 @@ class SupabaseEngine {
   async findGroupByCode(code) {
     if (!this.client || !code) return null;
     try {
-      const cleanCode = code.trim().toUpperCase();
+      const cleanCode = code.trim();
       const { data, error } = await this.client
         .from('groups')
         .select('*')
-        .eq('code', cleanCode)
+        .or(`code.eq.${cleanCode.toUpperCase()},id.eq.${cleanCode.toLowerCase()}`)
         .maybeSingle();
 
       if (error || !data) return null;

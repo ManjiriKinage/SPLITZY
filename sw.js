@@ -2,7 +2,7 @@
  * SPLITZY 2.0 — Service Worker for Offline PWA Support (Supabase Edition)
  */
 
-const CACHE_NAME = 'splitzy-cache-v3.2';
+const CACHE_NAME = 'splitzy-cache-v4.0';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -27,6 +27,7 @@ const ASSETS_TO_CACHE = [
   'https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js',
+  'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'
 ];
 

@@ -48,16 +48,14 @@ class GroupsManager {
   }
 
   /**
-   * Generates a web shareable invite link for a group, encoding all current group details & expenses
+   * Generates a web shareable invite link for a group
    */
   static getInviteLink(group) {
     if (!group) return window.location.href;
-    const baseUrl = window.location.origin + window.location.pathname;
-    const payload = storage.exportGroupPayload(group.id);
-    if (payload) {
-      return `${baseUrl}#join=${encodeURIComponent(group.code || group.id)}&data=${payload}`;
-    }
-    return `${baseUrl}?join=${encodeURIComponent(group.code || group.id)}`;
+    const origin = window.location.origin;
+    const path = window.location.pathname.replace(/\/+$/, '') || '';
+    const code = group.code || group.id;
+    return `${origin}${path}/?join=${encodeURIComponent(code)}`;
   }
 
   static renderGroupCard(group, currentUserName) {

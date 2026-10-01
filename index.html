@@ -530,6 +530,28 @@
                   </div>
                 </div>
               </div>
+
+              <!-- My Groups & Memberships Section -->
+              <div class="mt-4 pt-4 border-top" style="border-color: var(--card-border) !important;">
+                <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                  <div>
+                    <h5 class="text-main fw-bold mb-0"><i class="fa-solid fa-users-rectangle text-primary me-2"></i>My Expense Groups</h5>
+                    <small class="text-muted">All active groups you are a member of</small>
+                  </div>
+                  <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-splitzy-secondary" onclick="App.openJoinGroupModal()">
+                      <i class="fa-solid fa-qrcode me-1 text-warning"></i> Join via QR / Code
+                    </button>
+                    <button class="btn btn-sm btn-splitzy-primary" onclick="App.openCreateGroupModal()">
+                      <i class="fa-solid fa-plus me-1"></i> Create Group
+                    </button>
+                  </div>
+                </div>
+
+                <div class="row g-3" id="profileMyGroupsList">
+                  <!-- Populated dynamically via App.renderProfileView() -->
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -976,35 +998,71 @@
     </div>
   </div>
 
-  <!-- Modal 3: Join Group / Import Data -->
+  <!-- Modal 3: Join Group / Import Data / Live QR Scanner -->
   <div class="modal fade" id="joinGroupModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title text-main fw-bold"><i class="fa-solid fa-key me-2 text-warning"></i>Join Group / Sync Data</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          <h5 class="modal-title text-main fw-bold"><i class="fa-solid fa-qrcode me-2 text-primary"></i>Join Group</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" onclick="App.stopQrScanner()"></button>
         </div>
-        <div class="modal-body">
-          <p class="text-muted small mb-3">
-            Enter a <strong>Group Code</strong> (e.g. <code>GRP-XXXX</code>) or paste the <strong>Invite Link / Sync Data</strong> shared from another phone or computer.
-          </p>
-          <form onsubmit="event.preventDefault(); App.joinGroupByCode();">
-            <div class="mb-3">
-              <label class="form-label fw-bold text-main d-flex justify-content-between">
-                <span>Group Code or Invite Link</span>
-                <a href="javascript:void(0)" class="text-decoration-none small text-primary" onclick="App.pasteIntoJoinInput()">
-                  <i class="fa-solid fa-paste me-1"></i>Paste
-                </a>
-              </label>
-              <textarea class="form-control font-monospace" id="joinGroupCodeInput" rows="2" placeholder="e.g. GRP-TRIP or paste full invite link https://...#data=..." required></textarea>
+        <div class="modal-body p-3">
+          <!-- Join Tabs: Manual Code vs Live Camera QR Scan -->
+          <ul class="nav nav-pills nav-fill mb-3 bg-body-secondary p-1 rounded-3" id="joinGroupTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active fw-bold small py-2" id="tab-join-code-btn" data-bs-toggle="pill" data-bs-target="#tab-join-code-pane" type="button" role="tab" onclick="App.stopQrScanner()">
+                <i class="fa-solid fa-key me-1"></i> Enter Code / Link
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link fw-bold small py-2" id="tab-join-qr-btn" data-bs-toggle="pill" data-bs-target="#tab-join-qr-pane" type="button" role="tab" onclick="App.startQrScanner()">
+                <i class="fa-solid fa-camera me-1"></i> Scan QR Code
+              </button>
+            </li>
+          </ul>
+
+          <div class="tab-content" id="joinGroupTabsContent">
+            <!-- 1. Code / Link Input Tab -->
+            <div class="tab-pane fade show active" id="tab-join-code-pane" role="tabpanel">
+              <p class="text-muted small mb-3">
+                Enter a <strong>Group Code</strong> (e.g. <code>GRP-XXXX</code>) or paste the <strong>Invite Link</strong>.
+              </p>
+              <form onsubmit="event.preventDefault(); App.joinGroupByCode();">
+                <div class="mb-3">
+                  <label class="form-label fw-bold text-main d-flex justify-content-between">
+                    <span>Group Code or Invite Link</span>
+                    <a href="javascript:void(0)" class="text-decoration-none small text-primary" onclick="App.pasteIntoJoinInput()">
+                      <i class="fa-solid fa-paste me-1"></i>Paste
+                    </a>
+                  </label>
+                  <textarea class="form-control font-monospace" id="joinGroupCodeInput" rows="2" placeholder="e.g. GRP-TRIP or https://splitzy.vercel.app?join=GRP-TRIP" required></textarea>
+                </div>
+                <button type="submit" class="btn btn-splitzy-primary w-100 py-2 fw-bold">
+                  <i class="fa-solid fa-arrow-right-to-bracket me-1"></i> Join Group
+                </button>
+              </form>
             </div>
-            <button type="submit" class="btn btn-splitzy-primary w-100 py-2 fw-bold">
-              <i class="fa-solid fa-arrow-right-to-bracket me-1"></i> Join & Sync Group
-            </button>
-          </form>
+
+            <!-- 2. Live Camera QR Code Scanner Tab -->
+            <div class="tab-pane fade" id="tab-join-qr-pane" role="tabpanel">
+              <div class="text-center">
+                <p class="text-muted small mb-2">
+                  Point your camera at a friend's Splitzy QR code to join instantly:
+                </p>
+                <div id="qr-reader" class="rounded overflow-hidden border shadow-sm mx-auto mb-2" style="max-width: 320px; min-height: 240px; background: #000;">
+                  <!-- QR Video stream rendered here by html5-qrcode -->
+                </div>
+                <div id="qr-reader-results" class="small text-success fw-bold mt-1"></div>
+                <button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="App.restartQrScanner()">
+                  <i class="fa-solid fa-arrows-rotate me-1"></i> Switch / Restart Camera
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div class="alert alert-light border mt-3 mb-0 p-2 d-flex align-items-center gap-2 small text-muted">
             <i class="fa-solid fa-circle-info text-primary fs-5"></i>
-            <span>Opening an invite link directly in your browser will also import and sync the group automatically!</span>
+            <span>Scanning with your mobile camera app will also open and join the group in 1 click!</span>
           </div>
         </div>
       </div>
@@ -1350,6 +1408,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
   <!-- Supabase JS Client (v2) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
