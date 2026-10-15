@@ -1,0 +1,89 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-app: #F7F7F5;
+  --bg-card: #FFFFFF;
+  --bg-subtle: #F4F4F5;
+  --border-hairline: #E5E7EB;
+  --text-main: #111827;
+  --text-muted: #6B7280;
+  --accent: #4F46E5;
+  --accent-hover: #4338CA;
+  --positive: #16A34A;
+  --positive-light: #DCFCE7;
+  --negative: #DC2626;
+  --negative-light: #FEE2E2;
+}
+
+.dark {
+  --bg-app: #0E0F11;
+  --bg-card: #17181B;
+  --bg-subtle: #1F2023;
+  --border-hairline: #27272A;
+  --text-main: #F9FAFB;
+  --text-muted: #9CA3AF;
+  --accent: #6366F1;
+  --accent-hover: #4F46E5;
+  --positive: #22C55E;
+  --positive-light: rgba(34, 197, 94, 0.15);
+  --negative: #EF4444;
+  --negative-light: rgba(239, 68, 68, 0.15);
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--bg-app);
+  color: var(--text-main);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Tabular figures for all financial amounts */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 44px minimum touch targets for WCAG AA mobile accessibility */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Soft hairline borders */
+.hairline-border {
+  border: 1px solid var(--border-hairline);
+}
+
+/* Smooth motion with respect to reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-delay: -1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    background-attachment: initial !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+  }
+}
+
+/* Clean scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.3);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.5);
+}

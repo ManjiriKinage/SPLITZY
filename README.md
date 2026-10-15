@@ -1,95 +1,121 @@
-# Splitzy — Real-Time Group Expense & Debt Settlement App (Supabase Edition)
+# Splitzy 2.0 — UPI-First Group Expense Splitting for India
 
-> **A modern, real-time Progressive Web Application (PWA) built with Vanilla JavaScript (ES6+), Supabase (PostgreSQL, Auth & Realtime WebSockets), Bootstrap 5, Chart.js, and UPI Payment Deep-Links.**
-
----
-
-## 🌟 Project Overview
-
-When friends travel together, flatmates share monthly bills, or colleagues split group expenses, keeping track of who paid and who owes whom becomes messy.
-
-**Splitzy** solves this by:
-1. Providing direct **Supabase Authentication** (Secure Email/Password register and login barrier).
-2. Supporting 4 flexible split modes (**Equal**, **Exact amounts**, **Percentage shares**, and **Itemized / "Who Ate What"**).
-3. Calculating net balances for every individual in real-time.
-4. Executing an optimal **Greedy Min-Cash-Flow Debt Simplification Algorithm** ($O(N \log N)$) to reduce cross-party debts down to at most $(N - 1)$ transactions.
-5. Broadcasting database changes live across all connected devices using **Supabase Realtime WebSockets (Postgres Change Data Capture)**.
-6. Generating instant NPCI-compliant **UPI payment QR codes & deep-links** for GPay, PhonePe, and Paytm.
+A calm, trustworthy fintech application (inspired by Cred, Revolut, and Linear) built for trips, flatmates, and college groups in India. Mobile-first PWA that adapts into a three-pane desktop workspace.
 
 ---
 
-## 🚀 Key Features
+## Architecture & Engineering Principles
 
-* **Real-Time Multi-Device Sync**: Powered by Supabase PostgreSQL and Realtime Channels—when an expense is added on one phone, all members' screens update instantly without reloading.
-* **Gatekeeper Supabase Auth**: Users must log in or register before accessing groups and expenses. Secure session handling and user profile synchronization.
-* **Optimal Debt Settlement Algorithm**: Mathematically eliminates circular debts ($O(N^2) \rightarrow N - 1$).
-* **NPCI-Compliant UPI Payments**: Dynamic QR codes and 1-click mobile deep-links (`upi://pay`).
-* **Interactive Financial Analytics**: Category distribution doughnut charts and member comparison bar charts with **Chart.js**.
-* **Export & Sharing Hub**: Instant formatted WhatsApp group summaries, CSV spreadsheet downloads, and print-ready PDF settlement receipts.
-* **Progressive Web App (PWA)**: Installable on Android, iOS, and Desktop with offline caching via Service Worker.
+### 1. Integer-Paise Precision
+- **Zero float math**: All monetary values are strictly stored as integer paise (`BIGINT` in Postgres, `number` in TypeScript).
+- **Formatting**: `formatINR(paise)` formats amounts into `₹1,240` or `₹1,240.50` using `Intl.NumberFormat('en-IN')`.
+- Safe conversions (`rupeesToPaise`, `paiseToRupees`) eliminate floating-point rounding errors.
+
+### 2. Deterministic Split Rounding
+- When dividing an expense into fractional shares (e.g., ₹1.00 split 3 ways):
+  - Base share: `Math.floor(total / n)` = 33 paise each.
+  - Remainder paise (1 paise): Distributed deterministically to the **payer first**, then in member order.
+  - Guarantees the sum of all individual shares **always equals the total amount exactly**.
+
+### 3. Greedy Two-Pointer Debt Simplification ("Simplified")
+- Solves net creditor/debtor imbalances in at most **$N-1$ transfers** using a pure, unit-tested function.
+- Verified with 12 unit tests in `vitest`.
+- Microcopy: Labeled truthfully as **"Simplified"**, never "Optimal".
+
+### 4. UPI-First Settlement Flow
+- Payers tap **"Pay via UPI"** to trigger standard `upi://pay?pa=...&pn=...&am=...&cu=INR` deep links.
+- On desktop, dynamically generates a scannable **UPI QR Code** compatible with Google Pay, PhonePe, Paytm, BHIM, and Cred.
+- 3-step payment lifecycle:
+  1. `pending`: Transfer calculated, waiting for payer.
+  2. `paid`: Payer marks as paid with optional reference ID.
+  3. `confirmed`: Receiver acknowledges and confirms receipt in the app.
+- Never marks a payment as verified until the receiver confirms.
+
+### 5. Group-Scoped Supabase Row-Level Security (RLS)
+- Users can only read and write rows of groups they belong to.
+- Evaluated via `is_group_member(group_id)` security definer function.
+- Full migration script provided in [`supabase-migration-v2.sql`](./supabase-migration-v2.sql).
 
 ---
 
-## 🧮 Algorithm Focus: Greedy Min-Cash-Flow Debt Simplification
+## Tech Stack
 
-### The Mathematical Problem
-In a group of $N$ people, pairwise settling can lead to up to $O(N^2)$ separate transactions.
-
-### The Solution: Min-Cash-Flow Greedy Algorithm ($O(N \log N)$)
-1. **Net Balance Calculation**:
-   $$\text{Net}(i) = \sum \text{Amount Paid by } i - \sum \text{Share Consumed by } i$$
-   * $\text{Net}(i) > 0 \implies$ **Creditor** (is owed money)
-   * $\text{Net}(i) < 0 \implies$ **Debtor** (owes money)
-   * $\text{Net}(i) = 0 \implies$ Settled
-
-2. **Greedy Two-Pointer Matching**:
-   * Sort Debtors descending by owed amount.
-   * Sort Creditors descending by receivable amount.
-   * Settle $\min(|D|, |C|)$ in a single direct transfer ($D \rightarrow C$).
-   * Adjust remaining amounts and repeat until all balances are zero.
-
-This guarantees settling all debts in at most $N - 1$ transactions!
+- **Frontend**: Vite + React 18 + TypeScript
+- **Styling**: Tailwind CSS (custom fintech tokens, hairline borders, 8px grid, dark mode CSS variables)
+- **Icons**: Lucide React
+- **State Management**: Zustand with persistent storage
+- **Data Fetching**: TanStack Query
+- **Charts & Visualizations**: Recharts (Category donut & per-member spend bar charts)
+- **Animations**: Framer Motion (subtle spring sheets & dialogs, reduced-motion tolerant)
+- **Database & Realtime**: Supabase Postgres & Realtime WebSockets
+- **Unit Testing**: Vitest
+- **PWA**: Web App Manifest + Service Worker offline caching
 
 ---
 
-## 📁 Project Structure
+## Design System Tokens
 
-```text
-SPLITZY/
-├── index.html              # Single Page Application shell & interactive modals
-├── supabase-schema.sql     # PostgreSQL tables, RLS policies & Realtime configuration
-├── css/
-│   └── style.css           # Glassmorphism, CSS design tokens, themes & animations
-├── js/
-│   ├── supabase-config.js  # Supabase project URL & public anon key
-│   ├── supabase.js         # Supabase client, Auth, and Realtime WebSocket Engine
-│   ├── storage.js          # In-memory reactive data manager & cache
-│   ├── auth.js             # Auth gatekeeper & session manager
-│   ├── settlement.js       # Greedy Min-Cash-Flow Algorithm & balance engine
-│   ├── groups.js           # Group management & avatar chip renderers
-│   ├── expenses.js         # Dynamic 4-mode split forms & list rendering
-│   ├── analytics.js        # Chart.js visualizations & group KPI cards
-│   ├── export.js           # CSV, WhatsApp text formatter & PDF receipt generator
-│   └── app.js              # Central UI controller, routing & event handlers
-├── assets/
-│   └── favicon.svg         # Splitzy branding vector icon
-└── manifest.json           # PWA configuration
+| Element | Light Mode | Dark Mode |
+|---|---|---|
+| Background | `#F7F7F5` | `#0E0F11` |
+| Cards | `#FFFFFF` (16px radius) | `#17181B` (16px radius) |
+| Accent | `#4F46E5` (Indigo) | `#6366F1` (Indigo tint) |
+| Positive (Money) | `#16A34A` | `#22C55E` |
+| Negative (Money) | `#DC2626` | `#EF4444` |
+| Typography | Inter (`tabular-nums`) | Inter (`tabular-nums`) |
+| Touch Target | Minimum 44px (WCAG AA) | Minimum 44px (WCAG AA) |
+
+---
+
+## Quick Start & Local Setup
+
+### 1. Prerequisites
+- Node.js >= 18
+- npm >= 9
+
+### 2. Installation
+```bash
+git clone <repository_url>
+cd SPLITZY
+npm install
+```
+
+### 3. Run Development Server
+```bash
+npm run dev
+```
+Open [http://localhost:5173](http://localhost:5173) in your browser.
+
+> [!NOTE]
+> Splitzy functions out-of-the-box in local demo / offline PWA mode with preloaded mock groups (*Goa Trip*, *Flat 402*, *Office lunch*).
+
+### 4. Supabase Setup (Optional for Cloud Sync)
+1. Create a Supabase project at [supabase.com](https://supabase.com).
+2. Run the migration script in [`supabase-migration-v2.sql`](./supabase-migration-v2.sql) in your Supabase SQL Editor.
+3. Create a `.env` file in the root directory:
+   ```env
+   VITE_SUPABASE_URL=https://your-project.supabase.co
+   VITE_SUPABASE_ANON_KEY=your-anon-key
+   ```
+4. Restart `npm run dev`.
+
+### 5. Running Tests
+```bash
+npm test
+```
+Runs 12 unit tests covering paise arithmetic, deterministic split rounding, and greedy two-pointer settlement simplification.
+
+### 6. Production Build
+```bash
+npm run build
 ```
 
 ---
 
-## 🛠️ How to Connect Your Supabase Backend
+## Roadmap
 
-1. Create a free project at [supabase.com](https://supabase.com).
-2. Go to **SQL Editor** in your Supabase Dashboard, paste the contents of [`supabase-schema.sql`](file:///d:/projects2/SPLITZY/supabase-schema.sql), and click **RUN**.
-3. Go to **Project Settings → API** in Supabase, and copy:
-   - **Project URL**
-   - **anon / public key**
-4. Paste them into [`js/supabase-config.js`](file:///d:/projects2/SPLITZY/js/supabase-config.js):
-   ```javascript
-   window.SPLITZY_SUPABASE_CONFIG = {
-     url: "https://your-project-ref.supabase.co",
-     anonKey: "your-anon-public-key"
-   };
-   ```
-5. Open [index.html](file:///d:/projects2/SPLITZY/index.html) in your browser!
+- [x] **v2.0**: Core redesign, integer paise precision, greedy debt simplification, dynamic UPI QR code generator, 3-step settlement timeline, PWA manifest.
+- [ ] **v2.1**: OCR receipt scanner using Gemini Flash API for automatic itemized bill extraction.
+- [ ] **v2.2**: Web Push Notifications via Service Worker when someone marks a transfer as paid.
+- [ ] **v2.3**: Multi-currency auto-conversion to INR using live FX rates for international trips.
+- [ ] **v2.4**: Recurring split automation for monthly flat rent & utility bills.

@@ -1,15 +1,15 @@
 {
-  "name": "Splitzy — Smart Group Expense & Settlement Manager",
+  "name": "Splitzy — UPI Group Expense Splitter",
   "short_name": "Splitzy",
-  "description": "Smart group expense splitting, instant UPI settlements, and greedy min-cash-flow debt simplification.",
-  "start_url": "./index.html",
+  "description": "UPI-first group expense splitting and debt simplification app for India.",
+  "start_url": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#0f172a",
-  "theme_color": "#4f46e5",
+  "background_color": "#F7F7F5",
+  "theme_color": "#4F46E5",
   "icons": [
     {
-      "src": "assets/favicon.svg",
+      "src": "/assets/favicon.svg",
       "sizes": "192x192 512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"
